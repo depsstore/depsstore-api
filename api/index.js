@@ -1,259 +1,110 @@
-/**
- * api/index.js - Vercel Serverless Function
- * @version 2.9.0
- */
+// api/index.js - Vercel Serverless Function
+const express = require('express');
+const cors = require('cors');
 
-const https = require('https');
-const http = require('http');
-const url = require('url');
+// Import dari backend Anda
+const app = express();
 
-// 🔥 APPS SCRIPT URL - PAKAI YANG BARU DARI CONFIG
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Import routes dari backend
+const routes = require('../src/backend/javascripts/server/routes.js');
+
+// Atau jika Anda punya express app di server.js
+// const server = require('../src/backend/server.js');
+// module.exports = server;
 
 // ============================================================
-// HELPER: FETCH REQUEST
+// ROUTES - Dari backend Anda
 // ============================================================
 
-function fetchRequest(targetUrl, options = {}) {
-    return new Promise((resolve, reject) => {
-        const parsedUrl = url.parse(targetUrl);
-        const isHttps = parsedUrl.protocol === 'https:';
-        const httpModule = isHttps ? https : http;
-
-        const requestOptions = {
-            hostname: parsedUrl.hostname,
-            port: parsedUrl.port || (isHttps ? 443 : 80),
-            path: parsedUrl.path || '/',
-            method: options.method || 'GET',
-            headers: options.headers || {}
-        };
-
-        const req = httpModule.request(requestOptions, (response) => {
-            let data = '';
-
-            response.on('data', (chunk) => {
-                data += chunk;
-            });
-
-            response.on('end', () => {
-                resolve({
-                    status: response.statusCode,
-                    headers: response.headers,
-                    data: data
-                });
-            });
-        });
-
-        req.on('error', (error) => {
-            reject(error);
-        });
-
-        if (options.body) {
-            req.write(options.body);
+// Root
+app.get('/', (req, res) => {
+    res.json({
+        success: true,
+        message: 'DepsStore API v2.9.0',
+        endpoints: {
+            health: '/api/v2/system/health',
+            products: '/api/v2/products',
+            orders: '/api/v2/orders',
+            customers: '/api/v2/customers',
+            auth: '/api/v2/auth/login'
         }
-
-        req.end();
     });
-}
+});
 
-// ============================================================
-// VERCELL SERVERLESS HANDLER
-// ============================================================
+// Health
+app.get('/api/v2/system/health', (req, res) => {
+    res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        version: '2.9.0'
+    });
+});
 
-module.exports = async (req, res) => {
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Max-Age', '3600');
+// 🔥 IMPORT SEMUA ROUTES DARI BACKEND
+// Karena routes.js menggunakan format sendiri, kita perlu adaptasi
 
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
+// Atau langsung gunakan semua route dari routes.js
+const { router } = require('../src/backend/javascripts/server/routes.js');
 
-    const path = req.url || '/';
-    console.log(`[${new Date().toISOString()}] ${req.method} ${path}`);
-
-    try {
-        // ROOT
-        if (path === '/' || path === '') {
-            res.status(200).json({
-                success: true,
-                message: 'DepsStore API v2',
-                version: '2.9.0',
-                endpoints: {
-                    health: '/api/v2/system/health',
-                    products: '/api/v2/products',
-                    stats: '/api/v2/stats',
-                    support: '/api/v2/support',
-                    login: '/api/v2/auth/login'
-                },
-                timestamp: new Date().toISOString()
-            });
-            return;
-        }
-
-        // HEALTH
-        if (path === '/health' || path === '/api/v2/system/health') {
-            res.status(200).json({
-                status: 'healthy',
-                timestamp: new Date().toISOString(),
-                version: '2.9.0',
-                environment: 'production'
-            });
-            return;
-        }
-
-        // 🔥 STATS - Proxy ke Apps Script
-        if (path === '/api/v2/stats') {
-            const targetUrl = APPS_SCRIPT_URL + '?action=getStats';
-            console.log(`  → Fetching stats: ${targetUrl}`);
-
-            const response = await fetchRequest(targetUrl);
-            
-            try {
-                const jsonData = JSON.parse(response.data);
-                res.status(200).json(jsonData);
-            } catch (e) {
-                res.status(200).json({
-                    success: true,
-                    data: {
-                        products: 0,
-                        customers: 0,
-                        users: 0,
-                        timestamp: new Date().toISOString()
-                    }
-                });
-            }
-            return;
-        }
-
-        // 🔥 PRODUCTS - Proxy ke Apps Script
-        if (path.startsWith('/api/v2/products')) {
-            const queryString = path.includes('?') ? path.split('?')[1] : '';
-            const targetUrl = APPS_SCRIPT_URL + '?action=getProducts' + (queryString ? '&' + queryString : '');
-            console.log(`  → Fetching products: ${targetUrl}`);
-
-            const response = await fetchRequest(targetUrl);
-
-            try {
-                const jsonData = JSON.parse(response.data);
-                res.status(200).json(jsonData);
-            } catch (e) {
-                res.status(200).json({
-                    success: true,
-                    items: [],
-                    total: 0,
-                    timestamp: new Date().toISOString()
-                });
-            }
-            return;
-        }
-
-        // 🔥 SUPPORT - Proxy ke Apps Script (POST)
-        if (path === '/api/v2/support') {
-            let body = '';
-            if (req.method === 'POST') {
-                req.on('data', (chunk) => { body += chunk; });
-                await new Promise((resolve) => req.on('end', resolve));
-            }
-
-            const targetUrl = APPS_SCRIPT_URL + '?action=createSupport';
-            console.log(`  → Proxying support to: ${targetUrl}`);
-            console.log(`  → Body: ${body}`);
-
-            const response = await fetchRequest(targetUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: body
-            });
-
-            try {
-                const jsonData = JSON.parse(response.data);
-                res.status(200).json(jsonData);
-            } catch (e) {
-                res.status(200).json({
-                    success: true,
-                    message: 'Pengaduan berhasil dikirim',
-                    data: { id: 'SUP-' + Date.now(), status: 'new' }
-                });
-            }
-            return;
-        }
-
-        // 🔥 AUTH - Proxy ke Apps Script
-        if (path.startsWith('/api/v2/auth/')) {
-            const targetUrl = APPS_SCRIPT_URL + path;
-            console.log(`  → Proxying auth to: ${targetUrl}`);
-
-            let body = '';
-            if (req.method === 'POST' || req.method === 'PUT') {
-                req.on('data', (chunk) => { body += chunk; });
-                await new Promise((resolve) => req.on('end', resolve));
-            }
-
-            const headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+// Untuk setiap route yang terdaftar di router, kita daftarkan ke express
+router.routes.forEach(route => {
+    const method = route.method.toLowerCase();
+    app[method](route.path, async (req, res) => {
+        try {
+            // Buat object req dan res yang kompatibel
+            const requestObj = {
+                method: req.method,
+                path: req.path,
+                url: req.url,
+                query: req.query,
+                body: req.body,
+                headers: req.headers,
+                params: req.params
             };
 
-            if (req.headers.authorization) {
-                headers['Authorization'] = req.headers.authorization;
-            }
-
-            const response = await fetchRequest(targetUrl, {
-                method: req.method,
-                headers: headers,
-                body: body
-            });
-
-            try {
-                const jsonData = JSON.parse(response.data);
-                res.status(response.status || 200).json(jsonData);
-            } catch (e) {
-                res.status(500).json({
-                    success: false,
-                    error: 'Invalid response from Apps Script'
-                });
-            }
-            return;
-        }
-
-        // API V2 ROOT
-        if (path === '/api/v2' || path === '/api/v2/') {
-            res.status(200).json({
-                success: true,
-                message: 'DepsStore API v2',
-                version: '2.9.0',
-                endpoints: {
-                    health: '/api/v2/system/health',
-                    products: '/api/v2/products',
-                    stats: '/api/v2/stats',
-                    support: '/api/v2/support',
-                    login: '/api/v2/auth/login'
+            const responseObj = {
+                statusCode: 200,
+                headers: {},
+                body: null,
+                status: function(code) {
+                    this.statusCode = code;
+                    return this;
                 },
-                timestamp: new Date().toISOString()
+                json: function(data) {
+                    this.headers['Content-Type'] = 'application/json';
+                    this.body = JSON.stringify(data);
+                    return this;
+                },
+                send: function(data) {
+                    this.body = data;
+                    return this;
+                },
+                setHeader: function(key, value) {
+                    this.headers[key] = value;
+                    return this;
+                }
+            };
+
+            await route.handler(requestObj, responseObj);
+
+            // Kirim response
+            if (responseObj.headers['Content-Type'] === 'application/json') {
+                res.status(responseObj.statusCode).json(JSON.parse(responseObj.body));
+            } else {
+                res.status(responseObj.statusCode).send(responseObj.body);
+            }
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                error: error.message
             });
-            return;
         }
+    });
+});
 
-        // 404
-        res.status(404).json({
-            success: false,
-            error: 'Endpoint not found',
-            path: path,
-            method: req.method
-        });
-
-    } catch (error) {
-        console.error('❌ Error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Internal server error',
-            message: error.message
-        });
-    }
-};
+// Export untuk Vercel
+module.exports = app;
