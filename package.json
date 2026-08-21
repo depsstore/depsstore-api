@@ -3,13 +3,12 @@
     "version": "2.9.0",
     "type": "commonjs",
     "scripts": {
-        "start": "node main.js",
-        "dev": "node main.js",
+        "start": "node api/index.js",
         "vercel-build": "npm install --production"
     },
     "dependencies": {
         "express": "^4.18.2",
         "cors": "^2.8.5",
-        "node-fetch": "^3.3.2"
+        "node-fetch": "^2.6.7"
     }
 }
