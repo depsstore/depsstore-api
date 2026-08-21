@@ -1,6 +1,7 @@
-// api/index.js - Vercel Serverless Function
+// api/index.js - Vercel Serverless Function (FIXED)
 const express = require('express');
 const cors = require('cors');
+const fetch = require('node-fetch');
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.get('/', (req, res) => {
         endpoints: {
             health: '/api/v2/system/health',
             products: '/api/v2/products',
+            stats: '/api/v2/stats',
             orders: '/api/v2/orders',
             customers: '/api/v2/customers',
             auth: '/api/v2/auth/login',
@@ -48,8 +50,6 @@ const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.co
 
 // Helper function untuk proxy request
 async function proxyRequest(targetUrl, method, body, headers) {
-    const fetch = require('node-fetch');
-    
     const options = {
         method: method || 'GET',
         headers: {
@@ -71,6 +71,39 @@ async function proxyRequest(targetUrl, method, body, headers) {
         data: data
     };
 }
+
+// ============================================================
+// 🔥 STATS (FIXED - SUPPORT /api/v2/stats DAN /api/v2/stat)
+// ============================================================
+app.get('/api/v2/stats', async (req, res) => {
+    try {
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getStats`;
+        console.log(`  → Fetching stats: ${targetUrl}`);
+        
+        const result = await proxyRequest(targetUrl);
+        res.status(result.status).json(result.data);
+    } catch (error) {
+        console.error('Stats error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// 🔥 DUKUNG JUGA /api/v2/stat (biar gak error)
+app.get('/api/v2/stat', async (req, res) => {
+    try {
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getStats`;
+        const result = await proxyRequest(targetUrl);
+        res.status(result.status).json(result.data);
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 
 // ============================================================
 // PRODUCTS
