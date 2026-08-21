@@ -1,0 +1,42 @@
+📁 depsstorefix
+│
+├── 📄 MAIN.gs                 ✅ Entry Point
+├── 📄 CONFIG.gs               ✅ Configuration
+├── 📄 CONSTANTS.gs            ✅ Constants
+├── 📄 SETUPPROPERTIES.gs      ✅ Setup
+├── 📄 TEST.gs                 ✅ Testing
+├── 📄 TRIGGERS.gs             ✅ Triggers
+├── 📄 UTILS.gs                ✅ Utilities
+├── 📄 VALIDATORS.gs           ✅ Validators
+├── 📄 SANITIZERS.gs           ✅ Sanitizers
+├── 📄 DATABASE.gs             ✅ Database Layer
+├── 📄 CACHE.gs                ✅ Cache Manager
+├── 📄 LOGGING.gs              ✅ Logging System
+├── 📄 ERRORHANDLER.gs         ✅ Error Handler
+├── 📄 IDGenerator.gs          ✅ ID Generator
+├── 📄 SECURITY.gs             ✅ Security
+├── 📄 AUTH.gs                 ✅ Authentication
+├── 📄 RATELIMITER.gs          ✅ Rate Limiter
+├── 📄 DASHBOARD.gs            ✅ Dashboard
+├── 📄 BACKUP.gs               ✅ Backup Service
+│
+├── 📁 Controllers/
+│   ├── 📄 ProductController.gs    ✅
+│   ├── 📄 UserController.gs       ✅ NEW
+│   ├── 📄 CustomerController.gs   ✅ NEW
+│   ├── 📄 OrderController.gs      ✅ NEW
+│   └── 📄 SupportController.gs    ✅ NEW
+│
+├── 📁 Services/
+│   ├── 📄 ProductService.gs       ✅
+│   ├── 📄 UserService.gs          ✅ NEW
+│   ├── 📄 CustomerService.gs      ✅ NEW
+│   ├── 📄 OrderService.gs         ✅ NEW
+│   └── 📄 SupportService.gs       ✅ NEW
+│
+└── 📁 Models/
+    ├── 📄 ProductModel.gs         ✅
+    ├── 📄 UserModel.gs            ✅ NEW
+    ├── 📄 CustomerModel.gs        ✅ NEW
+    ├── 📄 OrderModel.gs           ✅ NEW
+    └── 📄 SupportModel.gs         ✅ NEW
