@@ -1,4 +1,4 @@
-// api/index.js - Vercel Serverless Function (DENGAN PAYMENT + DEBUG)
+// api/index.js - Vercel Serverless Function (LANGSUNG KE BUATQRIS)
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
@@ -10,65 +10,54 @@ app.use(cors());
 app.use(express.json());
 
 // ============================================================
-// 🔥 KONFIGURASI APPS SCRIPT
+// 🔥 KONFIGURASI BUATQRIS (dari Environment Variables)
 // ============================================================
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+const BQ_ACCOUNT_ID = process.env.BUATQRIS_ACCOUNT_ID;
+const BQ_SECRET_TOKEN = process.env.BUATQRIS_SECRET_TOKEN;
+const BQ_MODE = process.env.BUATQRIS_MODE || 'sandbox';
 
 // ============================================================
-// 🔥 HELPER: PROXY KE APPS SCRIPT
+// 🔥 HELPER: PANGGIL BUATQRIS API
 // ============================================================
-async function proxyRequest(targetUrl, method, body, headers) {
-    const options = {
-        method: method || 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            ...headers
-        }
-    };
-
-    if (body && (method === 'POST' || method === 'PUT')) {
-        options.body = JSON.stringify(body);
-    }
-
-    console.log(`📡 Proxying to: ${targetUrl}`);
-    console.log(`📦 Method: ${method}`);
-    console.log(`📦 Body:`, body);
-    
-    try {
-        const response = await fetch(targetUrl, options);
-        const contentType = response.headers.get('content-type');
-        
-        console.log(`📊 Response status: ${response.status}`);
-        console.log(`📊 Content-Type: ${contentType}`);
-        
-        let data;
-        if (contentType && contentType.includes('application/json')) {
-            data = await response.json();
-        } else {
-            const text = await response.text();
-            console.log(`📊 Response text (first 200 chars): ${text.substring(0, 200)}`);
-            // Coba parse sebagai JSON
-            try {
-                data = JSON.parse(text);
-            } catch (e) {
-                data = { success: false, error: 'Invalid JSON response', raw: text.substring(0, 200) };
-            }
-        }
-        
-        console.log(`📊 Response data:`, data);
-        
-        return {
-            status: response.status,
-            data: data
-        };
-    } catch (error) {
-        console.error(`❌ Fetch error:`, error);
+async function callBuatQris(params) {
+    // 🔥 Cek kredensial
+    if (!BQ_ACCOUNT_ID || !BQ_SECRET_TOKEN) {
+        console.error('❌ BuatQris credentials not configured!');
         return {
             status: 500,
-            data: { success: false, error: error.message }
+            data: {
+                success: false,
+                error: 'BuatQris credentials not configured. Please set BUATQRIS_ACCOUNT_ID and BUATQRIS_SECRET_TOKEN in environment variables.'
+            }
         };
     }
+    
+    const url = 'https://api.buatqris.site';
+    
+    const formData = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        formData.append(key, value);
+    }
+    
+    const options = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData
+    };
+    
+    console.log(`📡 Calling BuatQris API with action: ${params.action}`);
+    
+    const response = await fetch(url, options);
+    const data = await response.json();
+    
+    console.log(`📊 BuatQris response:`, data);
+    
+    return {
+        status: response.status,
+        data: data
+    };
 }
 
 // ============================================================
@@ -84,7 +73,7 @@ app.get('/api/v2/system/health', (req, res) => {
 });
 
 // ============================================================
-// 🔥 ROOT (dengan daftar endpoint lengkap)
+// 🔥 ROOT
 // ============================================================
 app.get('/', (req, res) => {
     res.json({
@@ -104,7 +93,6 @@ app.get('/', (req, res) => {
             payment: {
                 create: '/api/v2/payment/create (POST)',
                 status: '/api/v2/payment/status/:id (GET)',
-                webhook: '/api/webhook/buatqris (POST)',
                 sandbox: '/api/v2/payment/sandbox/complete (POST)'
             }
         },
@@ -113,21 +101,17 @@ app.get('/', (req, res) => {
 });
 
 // ============================================================
-// 🔥 PAYMENT - CREATE QRIS (POST) - DENGAN DEBUG
+// 🔥 PAYMENT - CREATE QRIS
 // ============================================================
 app.post('/api/v2/payment/create', async (req, res) => {
     console.log('🔥🔥🔥 PAYMENT CREATE ENDPOINT HIT! 🔥🔥🔥');
     console.log('📦 Request body:', req.body);
     
     try {
-        const { amount, customer, description, isTest, qrisMethod, feeBy } = req.body;
-        
-        console.log(`🔍 Amount: ${amount}`);
-        console.log(`🔍 Customer:`, customer);
+        const { amount, customer, description, isTest, qrisMethod, feeBy, callbackUrl } = req.body;
         
         // Validasi
         if (!amount || amount < 1000) {
-            console.log('❌ Validation failed: amount < 1000');
             return res.status(400).json({
                 success: false,
                 error: 'Minimal nominal Rp 1.000'
@@ -135,51 +119,66 @@ app.post('/api/v2/payment/create', async (req, res) => {
         }
         
         if (!customer || !customer.name || !customer.email) {
-            console.log('❌ Validation failed: customer incomplete');
             return res.status(400).json({
                 success: false,
                 error: 'Nama dan Email customer wajib diisi'
             });
         }
         
-        const targetUrl = `${APPS_SCRIPT_URL}?pathInfo=/api/v2/payment/create`;
-        console.log(`  → Creating payment: ${targetUrl}`);
+        // 🔥 🔥 🔥 PANGGIL BUATQRIS 🔥 🔥 🔥
+        const result = await callBuatQris({
+            action: 'api_create_qris',
+            account_id: BQ_ACCOUNT_ID,
+            secret_token: BQ_SECRET_TOKEN,
+            amount: String(amount),
+            description: description || `Order #${Date.now()}`,
+            qris_method: qrisMethod || 'qris_two',
+            fee_by: feeBy || 'user',
+            callback_url: callbackUrl || 'https://depsstore-api.vercel.app/',
+            test: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')) ? '1' : '0'
+        });
         
-        const result = await proxyRequest(
-            targetUrl,
-            'POST',
-            {
-                amount: amount,
-                customer: customer,
-                description: description || 'Order #' + Date.now(),
-                isTest: isTest !== undefined ? isTest : true,
-                qrisMethod: qrisMethod || 'qris_two',
-                feeBy: feeBy || 'user'
-            }
-        );
+        console.log(`📊 BuatQris result:`, result);
         
-        console.log(`📊 Result from proxy:`, result);
-        
-        // 🔥 Jika Apps Script mengembalikan error, tetap kirim response dengan status yang sesuai
-        if (result.data && !result.data.success) {
-            console.log(`⚠️ Apps Script returned error:`, result.data);
-            return res.status(result.status || 400).json(result.data);
+        if (!result.data.success) {
+            console.log(`⚠️ BuatQris error:`, result.data.message);
+            return res.status(result.status || 400).json({
+                success: false,
+                error: result.data.message || 'Failed to create payment'
+            });
         }
         
-        res.status(result.status || 200).json(result.data || { success: true });
+        const qrisData = result.data.data;
+        const transactionId = qrisData.transaction_id;
+        
+        res.status(200).json({
+            success: true,
+            data: {
+                transactionId: transactionId,
+                orderId: 'ORD-' + Date.now(),
+                qrUrl: qrisData.qr_url || '',
+                paymentUrl: qrisData.payment_url || '',
+                amount: amount,
+                totalAmount: qrisData.total_amount || amount,
+                status: qrisData.status || 'pending',
+                isTest: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')),
+                customer: customer,
+                qrisMethod: qrisData.qris_method || 'qris_two',
+                expiredAt: qrisData.expired_at || null
+            }
+        });
         
     } catch (error) {
         console.error('❌ Payment create error:', error);
         res.status(500).json({
             success: false,
-            error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            error: error.message
         });
     }
 });
 
 // ============================================================
-// 🔥 PAYMENT - CHECK STATUS (GET)
+// 🔥 PAYMENT - CHECK STATUS
 // ============================================================
 app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
     console.log(`🔍 PAYMENT STATUS CHECK: ${req.params.transactionId}`);
@@ -193,11 +192,36 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
             });
         }
         
-        const targetUrl = `${APPS_SCRIPT_URL}?pathInfo=/api/v2/payment/status/${transactionId}`;
-        console.log(`  → Checking status: ${targetUrl}`);
+        const result = await callBuatQris({
+            action: 'api_check_status',
+            account_id: BQ_ACCOUNT_ID,
+            secret_token: BQ_SECRET_TOKEN,
+            transaction_id: transactionId
+        });
         
-        const result = await proxyRequest(targetUrl, 'GET');
-        res.status(result.status).json(result.data);
+        console.log(`📊 BuatQris status result:`, result);
+        
+        if (!result.data.success) {
+            return res.status(result.status || 400).json({
+                success: false,
+                error: result.data.message || 'Failed to check status'
+            });
+        }
+        
+        const statusData = result.data.data;
+        
+        res.status(200).json({
+            success: true,
+            data: {
+                transactionId: statusData.transaction_id || transactionId,
+                status: statusData.status || 'pending',
+                amount: statusData.amount || 0,
+                totalAmount: statusData.total_amount || 0,
+                creditAmount: statusData.credit_amount || 0,
+                adminFee: statusData.admin_fee || 0,
+                isTest: statusData.is_test || false
+            }
+        });
         
     } catch (error) {
         console.error('❌ Payment status error:', error);
@@ -209,47 +233,12 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
 });
 
 // ============================================================
-// 🔥 PAYMENT - WEBHOOK (POST)
-// ============================================================
-app.post('/api/webhook/buatqris', async (req, res) => {
-    console.log(`📩 WEBHOOK RECEIVED`);
-    try {
-        const data = req.body;
-        const event = data.event || '';
-        const transactionId = data.transaction_id || '';
-        
-        console.log(`📩 Webhook: ${event} | TX: ${transactionId}`);
-        
-        if (!transactionId) {
-            return res.status(400).json({
-                success: false,
-                error: 'transaction_id is required'
-            });
-        }
-        
-        const targetUrl = `${APPS_SCRIPT_URL}?pathInfo=/api/webhook/buatqris`;
-        console.log(`  → Forwarding webhook: ${targetUrl}`);
-        
-        const result = await proxyRequest(targetUrl, 'POST', data);
-        res.status(result.status).json(result.data);
-        
-    } catch (error) {
-        console.error('❌ Webhook error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// ============================================================
-// 🔥 PAYMENT - COMPLETE SANDBOX (POST)
+// 🔥 PAYMENT - COMPLETE SANDBOX
 // ============================================================
 app.post('/api/v2/payment/sandbox/complete', async (req, res) => {
     console.log(`🏖️ SANDBOX COMPLETE: ${req.body.transactionId}`);
     try {
         const { transactionId } = req.body;
-        const token = req.headers.authorization || '';
         
         if (!transactionId) {
             return res.status(400).json({
@@ -258,17 +247,28 @@ app.post('/api/v2/payment/sandbox/complete', async (req, res) => {
             });
         }
         
-        const targetUrl = `${APPS_SCRIPT_URL}?pathInfo=/api/v2/payment/sandbox/complete`;
-        console.log(`  → Completing sandbox: ${targetUrl}`);
+        const statusResult = await callBuatQris({
+            action: 'api_check_status',
+            account_id: BQ_ACCOUNT_ID,
+            secret_token: BQ_SECRET_TOKEN,
+            transaction_id: transactionId
+        });
         
-        const result = await proxyRequest(
-            targetUrl,
-            'POST',
-            { transactionId: transactionId },
-            { 'Authorization': token }
-        );
+        if (!statusResult.data.success) {
+            return res.status(400).json({
+                success: false,
+                error: statusResult.data.message || 'Transaction not found'
+            });
+        }
         
-        res.status(result.status).json(result.data);
+        res.status(200).json({
+            success: true,
+            message: 'Sandbox transaction completed',
+            data: {
+                transactionId: transactionId,
+                status: 'success'
+            }
+        });
         
     } catch (error) {
         console.error('❌ Sandbox complete error:', error);
@@ -293,11 +293,17 @@ app.post('/api/v2/auth/login', async (req, res) => {
             });
         }
 
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
         const targetUrl = `${APPS_SCRIPT_URL}?action=login`;
-        console.log(`  → Proxying login to: ${targetUrl}`);
-
-        const result = await proxyRequest(targetUrl, 'POST', { email, password });
-        res.status(result.status).json(result.data);
+        
+        const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        res.status(response.status).json(data);
         
     } catch (error) {
         console.error('Login error:', error);
@@ -322,11 +328,17 @@ app.post('/api/v2/auth/register', async (req, res) => {
             });
         }
 
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
         const targetUrl = `${APPS_SCRIPT_URL}?action=register`;
-        console.log(`  → Proxying register to: ${targetUrl}`);
-
-        const result = await proxyRequest(targetUrl, 'POST', { name, email, password });
-        res.status(result.status).json(result.data);
+        
+        const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password })
+        });
+        
+        const data = await response.json();
+        res.status(response.status).json(data);
         
     } catch (error) {
         console.error('Register error:', error);
@@ -342,26 +354,14 @@ app.post('/api/v2/auth/register', async (req, res) => {
 // ============================================================
 app.get('/api/v2/stats', async (req, res) => {
     try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
         const targetUrl = `${APPS_SCRIPT_URL}?action=getStats`;
-        console.log(`  → Fetching stats: ${targetUrl}`);
         
-        const result = await proxyRequest(targetUrl, 'GET');
-        res.status(result.status).json(result.data);
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
     } catch (error) {
         console.error('Stats error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-app.get('/api/v2/stat', async (req, res) => {
-    try {
-        const targetUrl = `${APPS_SCRIPT_URL}?action=getStats`;
-        const result = await proxyRequest(targetUrl, 'GET');
-        res.status(result.status).json(result.data);
-    } catch (error) {
         res.status(500).json({
             success: false,
             error: error.message
@@ -374,68 +374,19 @@ app.get('/api/v2/stat', async (req, res) => {
 // ============================================================
 app.get('/api/v2/products', async (req, res) => {
     try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
         const queryString = new URLSearchParams(req.query).toString();
         const targetUrl = `${APPS_SCRIPT_URL}?action=getProducts${queryString ? '&' + queryString : ''}`;
         
-        const result = await proxyRequest(targetUrl, 'GET');
-        res.status(result.status).json(result.data);
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
     } catch (error) {
         console.error('Products error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
-    }
-});
-
-app.get('/api/v2/products/:id', async (req, res) => {
-    try {
-        const targetUrl = `${APPS_SCRIPT_URL}?action=getProduct&id=${req.params.id}`;
-        const result = await proxyRequest(targetUrl, 'GET');
-        res.status(result.status).json(result.data);
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ============================================================
-// 🔥 ORDERS
-// ============================================================
-app.get('/api/v2/orders', async (req, res) => {
-    try {
-        const queryString = new URLSearchParams(req.query).toString();
-        const targetUrl = `${APPS_SCRIPT_URL}?action=getOrders${queryString ? '&' + queryString : ''}`;
-        const result = await proxyRequest(targetUrl, 'GET');
-        res.status(result.status).json(result.data);
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ============================================================
-// 🔥 CUSTOMERS
-// ============================================================
-app.get('/api/v2/customers', async (req, res) => {
-    try {
-        const queryString = new URLSearchParams(req.query).toString();
-        const targetUrl = `${APPS_SCRIPT_URL}?action=getCustomers${queryString ? '&' + queryString : ''}`;
-        const result = await proxyRequest(targetUrl, 'GET');
-        res.status(result.status).json(result.data);
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ============================================================
-// 🔥 SUPPORT
-// ============================================================
-app.post('/api/v2/support', async (req, res) => {
-    try {
-        const targetUrl = `${APPS_SCRIPT_URL}?action=createSupport`;
-        const result = await proxyRequest(targetUrl, 'POST', req.body);
-        res.status(result.status).json(result.data);
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
     }
 });
 
