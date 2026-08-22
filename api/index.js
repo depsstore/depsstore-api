@@ -1,4 +1,4 @@
-// api/index.js - Vercel Serverless Function (FIXED)
+// api/index.js - Vercel Serverless Function (CLEAN)
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
@@ -36,6 +36,7 @@ app.get('/', (req, res) => {
             orders: '/api/v2/orders',
             customers: '/api/v2/customers',
             auth: '/api/v2/auth/login',
+            register: '/api/v2/auth/register',
             support: '/api/v2/support',
             dashboard: '/api/v2/dashboard'
         },
@@ -73,7 +74,65 @@ async function proxyRequest(targetUrl, method, body, headers) {
 }
 
 // ============================================================
-// 🔥 STATS (FIXED - SUPPORT /api/v2/stats DAN /api/v2/stat)
+// 🔥 AUTH - LOGIN
+// ============================================================
+app.post('/api/v2/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and password are required'
+            });
+        }
+
+        const targetUrl = `${APPS_SCRIPT_URL}?action=login`;
+        console.log(`  → Proxying login to: ${targetUrl}`);
+
+        const result = await proxyRequest(targetUrl, 'POST', { email, password });
+        res.status(result.status).json(result.data);
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============================================================
+// 🔥 AUTH - REGISTER
+// ============================================================
+app.post('/api/v2/auth/register', async (req, res) => {
+    try {
+        const { name, email, password } = req.body;
+        
+        if (!name || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Name, email and password are required'
+            });
+        }
+
+        const targetUrl = `${APPS_SCRIPT_URL}?action=register`;
+        console.log(`  → Proxying register to: ${targetUrl}`);
+
+        const result = await proxyRequest(targetUrl, 'POST', { name, email, password });
+        res.status(result.status).json(result.data);
+        
+    } catch (error) {
+        console.error('Register error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============================================================
+// 🔥 STATS
 // ============================================================
 app.get('/api/v2/stats', async (req, res) => {
     try {
@@ -91,7 +150,6 @@ app.get('/api/v2/stats', async (req, res) => {
     }
 });
 
-// 🔥 DUKUNG JUGA /api/v2/stat (biar gak error)
 app.get('/api/v2/stat', async (req, res) => {
     try {
         const targetUrl = `${APPS_SCRIPT_URL}?action=getStats`;
@@ -156,27 +214,6 @@ app.get('/api/v2/customers', async (req, res) => {
         const queryString = new URLSearchParams(req.query).toString();
         const targetUrl = `${APPS_SCRIPT_URL}?action=getCustomers${queryString ? '&' + queryString : ''}`;
         const result = await proxyRequest(targetUrl);
-        res.status(result.status).json(result.data);
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ============================================================
-// AUTH - LOGIN
-// ============================================================
-app.post('/api/v2/auth/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                error: 'Email and password are required'
-            });
-        }
-
-        const targetUrl = `${APPS_SCRIPT_URL}?action=login`;
-        const result = await proxyRequest(targetUrl, 'POST', { email, password });
         res.status(result.status).json(result.data);
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
