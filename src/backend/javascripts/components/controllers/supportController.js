@@ -29,19 +29,21 @@ export var SupportController = {
         }
     },
 
+    // 🔥 CREATE SUPPORT - TANPA TOKEN (PUBLIC)
     create: async function(req, res) {
         try {
-            var token = req.headers.authorization ? req.headers.authorization.replace('Bearer ', '') : null;
+            // 🔥 HAPUS CEK TOKEN - Support bisa diakses public
+            // var token = req.headers.authorization ? req.headers.authorization.replace('Bearer ', '') : null;
 
-            if (!token) {
-                res.status(401).json({
-                    success: false,
-                    error: 'Authentication required'
-                });
-                return;
-            }
+            // if (!token) {
+            //     res.status(401).json({
+            //         success: false,
+            //         error: 'Authentication required'
+            //     });
+            //     return;
+            // }
 
-            var result = await api.createSupport(req.body, token);
+            var result = await api.createSupport(req.body, null); // ← token = null
             res.json(result);
         } catch (error) {
             logger.error('Create support error', { error: error.message });
