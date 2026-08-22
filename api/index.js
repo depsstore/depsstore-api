@@ -1,4 +1,4 @@
-// api/index.js - Vercel Serverless Function (CLEAN)
+// api/index.js - Vercel Serverless Function (DENGAN PAYMENT)
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
@@ -10,7 +10,40 @@ app.use(cors());
 app.use(express.json());
 
 // ============================================================
-// HEALTH CHECK
+// 🔥 KONFIGURASI APPS SCRIPT
+// ============================================================
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+
+// ============================================================
+// 🔥 HELPER: PROXY KE APPS SCRIPT
+// ============================================================
+async function proxyRequest(targetUrl, method, body, headers) {
+    const options = {
+        method: method || 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...headers
+        }
+    };
+
+    if (body && (method === 'POST' || method === 'PUT')) {
+        options.body = JSON.stringify(body);
+    }
+
+    console.log(`📡 Proxying to: ${targetUrl}`);
+    
+    const response = await fetch(targetUrl, options);
+    const data = await response.json();
+    
+    return {
+        status: response.status,
+        data: data
+    };
+}
+
+// ============================================================
+// 🔥 HEALTH CHECK
 // ============================================================
 app.get('/api/v2/system/health', (req, res) => {
     res.json({
@@ -22,7 +55,7 @@ app.get('/api/v2/system/health', (req, res) => {
 });
 
 // ============================================================
-// ROOT
+// 🔥 ROOT
 // ============================================================
 app.get('/', (req, res) => {
     res.json({
@@ -38,40 +71,167 @@ app.get('/', (req, res) => {
             auth: '/api/v2/auth/login',
             register: '/api/v2/auth/register',
             support: '/api/v2/support',
-            dashboard: '/api/v2/dashboard'
+            dashboard: '/api/v2/dashboard',
+            payment: {
+                create: '/api/v2/payment/create (POST)',
+                status: '/api/v2/payment/status/:id (GET)',
+                webhook: '/api/webhook/buatqris (POST)',
+                sandbox: '/api/v2/payment/sandbox/complete (POST)'
+            }
         },
         timestamp: new Date().toISOString()
     });
 });
 
 // ============================================================
-// 🔥 PROXY KE APPS SCRIPT
+// 🔥 PAYMENT - CREATE QRIS
 // ============================================================
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
-
-// Helper function untuk proxy request
-async function proxyRequest(targetUrl, method, body, headers) {
-    const options = {
-        method: method || 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            ...headers
+app.post('/api/v2/payment/create', async (req, res) => {
+    try {
+        const { amount, customer, description, isTest, qrisMethod, feeBy } = req.body;
+        
+        // Validasi
+        if (!amount || amount < 1000) {
+            return res.status(400).json({
+                success: false,
+                error: 'Minimal nominal Rp 1.000'
+            });
         }
-    };
-
-    if (body && (method === 'POST' || method === 'PUT')) {
-        options.body = JSON.stringify(body);
+        
+        if (!customer || !customer.name || !customer.email) {
+            return res.status(400).json({
+                success: false,
+                error: 'Nama dan Email customer wajib diisi'
+            });
+        }
+        
+        // 🔥 Kirim ke Apps Script
+        const targetUrl = `${APPS_SCRIPT_URL}?pathInfo=/api/v2/payment/create`;
+        console.log(`  → Creating payment: ${targetUrl}`);
+        
+        const result = await proxyRequest(
+            targetUrl,
+            'POST',
+            {
+                amount: amount,
+                customer: customer,
+                description: description || 'Order #' + Date.now(),
+                isTest: isTest !== undefined ? isTest : true,
+                qrisMethod: qrisMethod || 'qris_two',
+                feeBy: feeBy || 'user'
+            }
+        );
+        
+        res.status(result.status).json(result.data);
+        
+    } catch (error) {
+        console.error('❌ Payment create error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
+});
 
-    const response = await fetch(targetUrl, options);
-    const data = await response.json();
-    
-    return {
-        status: response.status,
-        data: data
-    };
-}
+// ============================================================
+// 🔥 PAYMENT - CHECK STATUS
+// ============================================================
+app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
+    try {
+        const { transactionId } = req.params;
+        
+        if (!transactionId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Transaction ID is required'
+            });
+        }
+        
+        const targetUrl = `${APPS_SCRIPT_URL}?pathInfo=/api/v2/payment/status/${transactionId}`;
+        console.log(`  → Checking status: ${targetUrl}`);
+        
+        const result = await proxyRequest(targetUrl, 'GET');
+        
+        res.status(result.status).json(result.data);
+        
+    } catch (error) {
+        console.error('❌ Payment status error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============================================================
+// 🔥 PAYMENT - WEBHOOK
+// ============================================================
+app.post('/api/webhook/buatqris', async (req, res) => {
+    try {
+        const data = req.body;
+        const event = data.event || '';
+        const transactionId = data.transaction_id || '';
+        
+        console.log(`📩 Webhook received: ${event} | TX: ${transactionId}`);
+        
+        if (!transactionId) {
+            return res.status(400).json({
+                success: false,
+                error: 'transaction_id is required'
+            });
+        }
+        
+        const targetUrl = `${APPS_SCRIPT_URL}?pathInfo=/api/webhook/buatqris`;
+        console.log(`  → Forwarding webhook: ${targetUrl}`);
+        
+        const result = await proxyRequest(targetUrl, 'POST', data);
+        
+        res.status(result.status).json(result.data);
+        
+    } catch (error) {
+        console.error('❌ Webhook error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============================================================
+// 🔥 PAYMENT - COMPLETE SANDBOX
+// ============================================================
+app.post('/api/v2/payment/sandbox/complete', async (req, res) => {
+    try {
+        const { transactionId } = req.body;
+        const token = req.headers.authorization || '';
+        
+        if (!transactionId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Transaction ID is required'
+            });
+        }
+        
+        const targetUrl = `${APPS_SCRIPT_URL}?pathInfo=/api/v2/payment/sandbox/complete`;
+        console.log(`  → Completing sandbox: ${targetUrl}`);
+        
+        const result = await proxyRequest(
+            targetUrl,
+            'POST',
+            { transactionId: transactionId },
+            { 'Authorization': token }
+        );
+        
+        res.status(result.status).json(result.data);
+        
+    } catch (error) {
+        console.error('❌ Sandbox complete error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 
 // ============================================================
 // 🔥 AUTH - LOGIN
@@ -139,7 +299,7 @@ app.get('/api/v2/stats', async (req, res) => {
         const targetUrl = `${APPS_SCRIPT_URL}?action=getStats`;
         console.log(`  → Fetching stats: ${targetUrl}`);
         
-        const result = await proxyRequest(targetUrl);
+        const result = await proxyRequest(targetUrl, 'GET');
         res.status(result.status).json(result.data);
     } catch (error) {
         console.error('Stats error:', error);
@@ -150,28 +310,15 @@ app.get('/api/v2/stats', async (req, res) => {
     }
 });
 
-app.get('/api/v2/stat', async (req, res) => {
-    try {
-        const targetUrl = `${APPS_SCRIPT_URL}?action=getStats`;
-        const result = await proxyRequest(targetUrl);
-        res.status(result.status).json(result.data);
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
 // ============================================================
-// PRODUCTS
+// 🔥 PRODUCTS
 // ============================================================
 app.get('/api/v2/products', async (req, res) => {
     try {
         const queryString = new URLSearchParams(req.query).toString();
         const targetUrl = `${APPS_SCRIPT_URL}?action=getProducts${queryString ? '&' + queryString : ''}`;
         
-        const result = await proxyRequest(targetUrl);
+        const result = await proxyRequest(targetUrl, 'GET');
         res.status(result.status).json(result.data);
     } catch (error) {
         console.error('Products error:', error);
@@ -185,7 +332,7 @@ app.get('/api/v2/products', async (req, res) => {
 app.get('/api/v2/products/:id', async (req, res) => {
     try {
         const targetUrl = `${APPS_SCRIPT_URL}?action=getProduct&id=${req.params.id}`;
-        const result = await proxyRequest(targetUrl);
+        const result = await proxyRequest(targetUrl, 'GET');
         res.status(result.status).json(result.data);
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -193,13 +340,13 @@ app.get('/api/v2/products/:id', async (req, res) => {
 });
 
 // ============================================================
-// ORDERS
+// 🔥 ORDERS
 // ============================================================
 app.get('/api/v2/orders', async (req, res) => {
     try {
         const queryString = new URLSearchParams(req.query).toString();
         const targetUrl = `${APPS_SCRIPT_URL}?action=getOrders${queryString ? '&' + queryString : ''}`;
-        const result = await proxyRequest(targetUrl);
+        const result = await proxyRequest(targetUrl, 'GET');
         res.status(result.status).json(result.data);
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -207,13 +354,13 @@ app.get('/api/v2/orders', async (req, res) => {
 });
 
 // ============================================================
-// CUSTOMERS
+// 🔥 CUSTOMERS
 // ============================================================
 app.get('/api/v2/customers', async (req, res) => {
     try {
         const queryString = new URLSearchParams(req.query).toString();
         const targetUrl = `${APPS_SCRIPT_URL}?action=getCustomers${queryString ? '&' + queryString : ''}`;
-        const result = await proxyRequest(targetUrl);
+        const result = await proxyRequest(targetUrl, 'GET');
         res.status(result.status).json(result.data);
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -221,7 +368,7 @@ app.get('/api/v2/customers', async (req, res) => {
 });
 
 // ============================================================
-// SUPPORT
+// 🔥 SUPPORT
 // ============================================================
 app.post('/api/v2/support', async (req, res) => {
     try {
@@ -234,7 +381,7 @@ app.post('/api/v2/support', async (req, res) => {
 });
 
 // ============================================================
-// 404 HANDLER
+// 🔥 404 HANDLER
 // ============================================================
 app.use((req, res) => {
     res.status(404).json({
@@ -246,7 +393,7 @@ app.use((req, res) => {
 });
 
 // ============================================================
-// ERROR HANDLER
+// 🔥 ERROR HANDLER
 // ============================================================
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
@@ -257,6 +404,6 @@ app.use((err, req, res, next) => {
 });
 
 // ============================================================
-// EXPORT UNTUK VERCELL
+// 🔥 EXPORT UNTUK VERCELL
 // ============================================================
 module.exports = app;
