@@ -55,7 +55,7 @@ app.get('/api/v2/system/health', (req, res) => {
 });
 
 // ============================================================
-// 🔥 ROOT
+// 🔥 ROOT (dengan daftar endpoint lengkap)
 // ============================================================
 app.get('/', (req, res) => {
     res.json({
@@ -84,7 +84,7 @@ app.get('/', (req, res) => {
 });
 
 // ============================================================
-// 🔥 PAYMENT - CREATE QRIS
+// 🔥 PAYMENT - CREATE QRIS (POST)
 // ============================================================
 app.post('/api/v2/payment/create', async (req, res) => {
     try {
@@ -105,7 +105,6 @@ app.post('/api/v2/payment/create', async (req, res) => {
             });
         }
         
-        // 🔥 Kirim ke Apps Script
         const targetUrl = `${APPS_SCRIPT_URL}?pathInfo=/api/v2/payment/create`;
         console.log(`  → Creating payment: ${targetUrl}`);
         
@@ -134,7 +133,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
 });
 
 // ============================================================
-// 🔥 PAYMENT - CHECK STATUS
+// 🔥 PAYMENT - CHECK STATUS (GET)
 // ============================================================
 app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
     try {
@@ -164,7 +163,7 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
 });
 
 // ============================================================
-// 🔥 PAYMENT - WEBHOOK
+// 🔥 PAYMENT - WEBHOOK (POST)
 // ============================================================
 app.post('/api/webhook/buatqris', async (req, res) => {
     try {
@@ -198,7 +197,7 @@ app.post('/api/webhook/buatqris', async (req, res) => {
 });
 
 // ============================================================
-// 🔥 PAYMENT - COMPLETE SANDBOX
+// 🔥 PAYMENT - COMPLETE SANDBOX (POST)
 // ============================================================
 app.post('/api/v2/payment/sandbox/complete', async (req, res) => {
     try {
@@ -303,6 +302,19 @@ app.get('/api/v2/stats', async (req, res) => {
         res.status(result.status).json(result.data);
     } catch (error) {
         console.error('Stats error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+app.get('/api/v2/stat', async (req, res) => {
+    try {
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getStats`;
+        const result = await proxyRequest(targetUrl, 'GET');
+        res.status(result.status).json(result.data);
+    } catch (error) {
         res.status(500).json({
             success: false,
             error: error.message
