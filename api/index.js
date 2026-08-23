@@ -100,101 +100,74 @@ app.get('/', (req, res) => {
     });
 });
 
-// ============================================================
-// 🔥 PAYMENT - CREATE QRIS
-// ============================================================
-app.post('/api/v2/payment/create', async (req, res) => {
-    console.log('🔥🔥🔥 PAYMENT CREATE ENDPOINT HIT! 🔥🔥🔥');
-    console.log('📦 Request body:', req.body);
-    
-    try {
-        const { amount, subtotal, feeAdmin, customer, description, isTest, qrisMethod, feeBy, callbackUrl, orderId } = req.body;
-        
-        // 🔥 PENTING: amount yang dikirim ke BuatQris = subtotal + feeAdmin
-        const amountToBuatQris = subtotal ? (subtotal + (feeAdmin || 0)) : amount;
-        
-        // Validasi
-        if (!amountToBuatQris || amountToBuatQris < 1000) {
-            return res.status(400).json({
-                success: false,
-                error: 'Minimal nominal Rp 1.000'
-            });
+function createQRISPayment(orderData) {
+    var url = API_URL + '/api/v2/payment/create';
+
+    console.log('Creating QRIS payment via Vercel API:', url);
+    console.log('Order data:', orderData);
+
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            // 🔥 KIRIM SUBTOTAL + FEE ADMIN KE BACKEND
+            subtotal: orderData.subtotal,       // Subtotal produk
+            feeAdmin: orderData.feeAdmin,       // Fee admin DepsStore
+            amount: orderData.total,            // total = subtotal + feeAdmin (untuk fallback)
+            orderId: orderData.orderId,         // 🔥 ORDER ID
+            description: 'Pembayaran Order ' + orderData.orderId,  // 🔥 ORDER ID DI DESKRIPSI
+            customer: {
+                name: orderData.customer.name,
+                email: orderData.customer.email,
+                phone: orderData.customer.phone
+            },
+            items: orderData.items,
+            callbackUrl: API_URL + '/api/webhook/buatqris',
+            isTest: true
+        })
+    })
+    .then(function(response) {
+        if (!response.ok) {
+            throw new Error('HTTP ' + response.status);
         }
-        
-        if (!customer || !customer.name || !customer.email) {
-            return res.status(400).json({
-                success: false,
-                error: 'Nama dan Email customer wajib diisi'
-            });
+        return response.json();
+    })
+    .then(function(data) {
+        console.log('QRIS payment created (via Vercel):', data);
+
+        if (!data.success) {
+            throw new Error(data.error || 'Gagal membuat pembayaran QRIS');
         }
-        
-        // 🔥 ORDER ID UNTUK DESKRIPSI
-        const orderDescription = description || `Pembayaran Order ${orderId || 'ORD-' + Date.now()}`;
-        
-        // 🔥 🔥 🔥 PANGGIL BUATQRIS 🔥 🔥 🔥
-        const result = await callBuatQris({
-            action: 'api_create_qris',
-            account_id: BQ_ACCOUNT_ID,
-            secret_token: BQ_SECRET_TOKEN,
-            amount: String(amountToBuatQris),  // 🔥 SUBTOTAL + FEE ADMIN (100.000 + 4.000 = 104.000)
-            description: orderDescription,     // 🔥 ORDER ID
-            qris_method: qrisMethod || 'qris_two',
-            fee_by: feeBy || 'user',
-            callback_url: callbackUrl || 'https://depsstore-api.vercel.app/',
-            test: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')) ? '1' : '0'
-        });
-        
-        console.log(`📊 BuatQris result:`, result);
-        
-        if (!result.data.success) {
-            console.log(`⚠️ BuatQris error:`, result.data.message);
-            return res.status(result.status || 400).json({
-                success: false,
-                error: result.data.message || 'Failed to create payment'
-            });
-        }
-        
-        const qrisData = result.data.data;
-        const transactionId = qrisData.transaction_id;
-        
-        // 🔥 HITUNG SERVICE FEE DENGAN BENAR
-        // total_amount dari BuatQris = amount + serviceFee
-        // amount = 104.000, total_amount = 104.074
-        // serviceFee = 104.074 - 104.000 = 74
-        const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
-        
-        // 🔥 AMBIL EXPIRED AT DARI BUATQRIS
-        const expiredAt = qrisData.expired_at || qrisData.expiredAt || null;
-        
-        res.status(200).json({
+
+        // 🔥 NORMALISASI DATA DARI VERCEL API
+        var result = {
             success: true,
             data: {
-                transactionId: transactionId,
-                orderId: orderId || 'ORD-' + Date.now(),
-                qrUrl: qrisData.qr_url || '',
-                qrisImage: qrisData.qris_image || '',
-                paymentUrl: qrisData.payment_url || '',
-                amount: amountToBuatQris,           // 🔥 SUBTOTAL + FEE ADMIN (104.000)
-                subtotal: subtotal || amountToBuatQris - (feeAdmin || 0),  // 🔥 SUBTOTAL PRODUK (100.000)
-                totalAmount: qrisData.total_amount || amountToBuatQris,      // 🔥 TOTAL DARI BUATQRIS (104.074)
-                serviceFee: serviceFee,              // 🔥 BIAYA LAYANAN (74) - HANYA DARI BUATQRIS
-                feeAdmin: feeAdmin || 0,             // 🔥 FEE ADMIN (4.000)
-                status: qrisData.status || 'pending',
-                isTest: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')),
-                customer: customer,
-                qrisMethod: qrisData.qris_method || 'qris_two',
-                expiredAt: expiredAt  // 🔥 KIRIM EXPIRED AT
+                transactionId: data.data.transactionId,
+                orderId: data.data.orderId,
+                qrUrl: data.data.qrUrl,
+                qrisImage: data.data.qrisImage,
+                paymentUrl: data.data.paymentUrl,
+                amount: data.data.amount,          // subtotal + feeAdmin
+                subtotal: data.data.subtotal,      // subtotal produk
+                totalAmount: data.data.totalAmount, // total dari BuatQris
+                serviceFee: data.data.serviceFee,   // 🔥 BIAYA LAYANAN (HANYA DARI BUATQRIS)
+                feeAdmin: data.data.feeAdmin,        // fee admin DepsStore
+                status: data.data.status,
+                expiredAt: data.data.expiredAt,      // 🔥 EXPIRED AT
+                isTest: data.data.isTest || false
             }
-        });
-        
-    } catch (error) {
-        console.error('❌ Payment create error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
+        };
+
+        return result;
+    })
+    .catch(function(error) {
+        console.error('QRIS payment error:', error);
+        throw error;
+    });
+}
 
 // ============================================================
 // 🔥 PAYMENT - CHECK STATUS
