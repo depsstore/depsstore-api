@@ -187,8 +187,14 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
         
         const statusData = result.data.data;
         
-        // 🔥 AMBIL EXPIRED AT DARI BUATQRIS
-        const expiredAt = statusData.expired_at || statusData.expiredAt || null;
+        // 🔥🔥🔥 AMBIL EXPIRED_AT DARI BUATQRIS
+        // BuatQris biasanya mengirim expired_at dalam format timestamp (detik) atau ISO string
+        let expiredAt = statusData.expired_at || statusData.expiredAt || null;
+        
+        // 🔥 Jika expiredAt berupa angka (timestamp detik), konversi ke ISO string
+        if (expiredAt && typeof expiredAt === 'number') {
+            expiredAt = new Date(expiredAt * 1000).toISOString();
+        }
         
         res.status(200).json({
             success: true,
@@ -200,7 +206,7 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
                 creditAmount: statusData.credit_amount || 0,
                 adminFee: statusData.admin_fee || 0,
                 serviceFee: statusData.admin_fee || 0,
-                expiredAt: expiredAt,  // 🔥 KIRIM EXPIRED AT
+                expiredAt: expiredAt,  // 🔥 KIRIM EXPIRED AT DALAM FORMAT ISO
                 isTest: statusData.is_test || false
             }
         });
