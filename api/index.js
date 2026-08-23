@@ -214,4 +214,153 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
     }
 });
 
+// ============================================================
+// 🔥 ENDPOINT LAIN (JANGAN DIUBAH)
+// ============================================================
+
+// AUTH - LOGIN
+app.post('/api/v2/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and password are required'
+            });
+        }
+
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=login`;
+        
+        const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        res.status(response.status).json(data);
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// AUTH - REGISTER
+app.post('/api/v2/auth/register', async (req, res) => {
+    try {
+        const { name, email, password } = req.body;
+        
+        if (!name || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Name, email and password are required'
+            });
+        }
+
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=register`;
+        
+        const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password })
+        });
+        
+        const data = await response.json();
+        res.status(response.status).json(data);
+        
+    } catch (error) {
+        console.error('Register error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// STATS
+app.get('/api/v2/stats', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getStats`;
+        
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Stats error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// PRODUCTS
+app.get('/api/v2/products', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const queryString = new URLSearchParams(req.query).toString();
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getProducts${queryString ? '&' + queryString : ''}`;
+        
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Products error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ORDERS
+app.get('/api/v2/orders', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const queryString = new URLSearchParams(req.query).toString();
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getOrders${queryString ? '&' + queryString : ''}`;
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Orders error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// 🔥 404 HANDLER
+// ============================================================
+app.use((req, res) => {
+    console.log(`❌ 404: ${req.method} ${req.path}`);
+    res.status(404).json({
+        success: false,
+        error: 'Endpoint not found',
+        path: req.path,
+        method: req.method
+    });
+});
+
+// ============================================================
+// 🔥 ERROR HANDLER
+// ============================================================
+app.use((err, req, res, next) => {
+    console.error('❌ Unhandled error:', err);
+    res.status(500).json({
+        success: false,
+        error: err.message || 'Internal server error'
+    });
+});
+
+// ============================================================
+// 🔥 EXPORT UNTUK VERCELL
+// ============================================================
 module.exports = app;
