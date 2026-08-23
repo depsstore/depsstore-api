@@ -111,8 +111,6 @@ app.post('/api/v2/payment/create', async (req, res) => {
         const { amount, subtotal, feeAdmin, customer, description, isTest, qrisMethod, feeBy, callbackUrl, orderId } = req.body;
         
         // 🔥 PENTING: amount yang dikirim ke BuatQris = subtotal + feeAdmin
-        // Jika frontend mengirim total (subtotal + feeAdmin), gunakan itu
-        // Jika frontend mengirim subtotal, tambahkan feeAdmin
         const amountToBuatQris = subtotal ? (subtotal + (feeAdmin || 0)) : amount;
         
         // Validasi
@@ -138,7 +136,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
             action: 'api_create_qris',
             account_id: BQ_ACCOUNT_ID,
             secret_token: BQ_SECRET_TOKEN,
-            amount: String(amountToBuatQris),  // 🔥 SUBTOTAL + FEE ADMIN
+            amount: String(amountToBuatQris),  // 🔥 SUBTOTAL + FEE ADMIN (100.000 + 4.000 = 104.000)
             description: orderDescription,     // 🔥 ORDER ID
             qris_method: qrisMethod || 'qris_two',
             fee_by: feeBy || 'user',
@@ -159,8 +157,14 @@ app.post('/api/v2/payment/create', async (req, res) => {
         const qrisData = result.data.data;
         const transactionId = qrisData.transaction_id;
         
-        // 🔥 HITUNG SERVICE FEE
+        // 🔥 HITUNG SERVICE FEE DENGAN BENAR
+        // total_amount dari BuatQris = amount + serviceFee
+        // amount = 104.000, total_amount = 104.074
+        // serviceFee = 104.074 - 104.000 = 74
         const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
+        
+        // 🔥 AMBIL EXPIRED AT DARI BUATQRIS
+        const expiredAt = qrisData.expired_at || qrisData.expiredAt || null;
         
         res.status(200).json({
             success: true,
@@ -170,16 +174,16 @@ app.post('/api/v2/payment/create', async (req, res) => {
                 qrUrl: qrisData.qr_url || '',
                 qrisImage: qrisData.qris_image || '',
                 paymentUrl: qrisData.payment_url || '',
-                amount: amountToBuatQris,           // 🔥 SUBTOTAL + FEE ADMIN
-                subtotal: subtotal || amountToBuatQris - (feeAdmin || 0),  // 🔥 SUBTOTAL PRODUK
-                totalAmount: qrisData.total_amount || amountToBuatQris,      // 🔥 TOTAL DARI BUATQRIS
-                serviceFee: serviceFee,              // 🔥 BIAYA LAYANAN
-                feeAdmin: feeAdmin || 0,             // 🔥 FEE ADMIN
+                amount: amountToBuatQris,           // 🔥 SUBTOTAL + FEE ADMIN (104.000)
+                subtotal: subtotal || amountToBuatQris - (feeAdmin || 0),  // 🔥 SUBTOTAL PRODUK (100.000)
+                totalAmount: qrisData.total_amount || amountToBuatQris,      // 🔥 TOTAL DARI BUATQRIS (104.074)
+                serviceFee: serviceFee,              // 🔥 BIAYA LAYANAN (74) - HANYA DARI BUATQRIS
+                feeAdmin: feeAdmin || 0,             // 🔥 FEE ADMIN (4.000)
                 status: qrisData.status || 'pending',
                 isTest: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')),
                 customer: customer,
                 qrisMethod: qrisData.qris_method || 'qris_two',
-                expiredAt: qrisData.expired_at || qrisData.expiredAt || null  // 🔥 AMBIL EXPIRED AT
+                expiredAt: expiredAt  // 🔥 KIRIM EXPIRED AT
             }
         });
         
