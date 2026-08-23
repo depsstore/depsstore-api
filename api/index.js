@@ -108,10 +108,15 @@ app.post('/api/v2/payment/create', async (req, res) => {
     console.log('📦 Request body:', req.body);
     
     try {
-        const { amount, customer, description, isTest, qrisMethod, feeBy, callbackUrl } = req.body;
+        const { amount, subtotal, feeAdmin, customer, description, isTest, qrisMethod, feeBy, callbackUrl, orderId } = req.body;
+        
+        // 🔥 PENTING: amount yang dikirim ke BuatQris = subtotal + feeAdmin
+        // Jika frontend mengirim total (subtotal + feeAdmin), gunakan itu
+        // Jika frontend mengirim subtotal, tambahkan feeAdmin
+        const amountToBuatQris = subtotal ? (subtotal + (feeAdmin || 0)) : amount;
         
         // Validasi
-        if (!amount || amount < 1000) {
+        if (!amountToBuatQris || amountToBuatQris < 1000) {
             return res.status(400).json({
                 success: false,
                 error: 'Minimal nominal Rp 1.000'
@@ -125,13 +130,16 @@ app.post('/api/v2/payment/create', async (req, res) => {
             });
         }
         
+        // 🔥 ORDER ID UNTUK DESKRIPSI
+        const orderDescription = description || `Pembayaran Order ${orderId || 'ORD-' + Date.now()}`;
+        
         // 🔥 🔥 🔥 PANGGIL BUATQRIS 🔥 🔥 🔥
         const result = await callBuatQris({
             action: 'api_create_qris',
             account_id: BQ_ACCOUNT_ID,
             secret_token: BQ_SECRET_TOKEN,
-            amount: String(amount),
-            description: description || `Order #${Date.now()}`,
+            amount: String(amountToBuatQris),  // 🔥 SUBTOTAL + FEE ADMIN
+            description: orderDescription,     // 🔥 ORDER ID
             qris_method: qrisMethod || 'qris_two',
             fee_by: feeBy || 'user',
             callback_url: callbackUrl || 'https://depsstore-api.vercel.app/',
@@ -151,20 +159,27 @@ app.post('/api/v2/payment/create', async (req, res) => {
         const qrisData = result.data.data;
         const transactionId = qrisData.transaction_id;
         
+        // 🔥 HITUNG SERVICE FEE
+        const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
+        
         res.status(200).json({
             success: true,
             data: {
                 transactionId: transactionId,
-                orderId: 'ORD-' + Date.now(),
+                orderId: orderId || 'ORD-' + Date.now(),
                 qrUrl: qrisData.qr_url || '',
+                qrisImage: qrisData.qris_image || '',
                 paymentUrl: qrisData.payment_url || '',
-                amount: amount,
-                totalAmount: qrisData.total_amount || amount,
+                amount: amountToBuatQris,           // 🔥 SUBTOTAL + FEE ADMIN
+                subtotal: subtotal || amountToBuatQris - (feeAdmin || 0),  // 🔥 SUBTOTAL PRODUK
+                totalAmount: qrisData.total_amount || amountToBuatQris,      // 🔥 TOTAL DARI BUATQRIS
+                serviceFee: serviceFee,              // 🔥 BIAYA LAYANAN
+                feeAdmin: feeAdmin || 0,             // 🔥 FEE ADMIN
                 status: qrisData.status || 'pending',
                 isTest: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')),
                 customer: customer,
                 qrisMethod: qrisData.qris_method || 'qris_two',
-                expiredAt: qrisData.expired_at || null
+                expiredAt: qrisData.expired_at || qrisData.expiredAt || null  // 🔥 AMBIL EXPIRED AT
             }
         });
         
@@ -210,6 +225,9 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
         
         const statusData = result.data.data;
         
+        // 🔥 AMBIL EXPIRED AT DARI BUATQRIS
+        const expiredAt = statusData.expired_at || statusData.expiredAt || null;
+        
         res.status(200).json({
             success: true,
             data: {
@@ -219,6 +237,8 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
                 totalAmount: statusData.total_amount || 0,
                 creditAmount: statusData.credit_amount || 0,
                 adminFee: statusData.admin_fee || 0,
+                serviceFee: statusData.admin_fee || (statusData.total_amount - statusData.amount) || 0,
+                expiredAt: expiredAt,  // 🔥 KIRIM EXPIRED AT KE FRONTEND
                 isTest: statusData.is_test || false
             }
         });
