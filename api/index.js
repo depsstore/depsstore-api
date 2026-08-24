@@ -60,7 +60,7 @@ async function callBuatQris(params) {
 }
 
 // ============================================================
-// 🔥 PAYMENT - CREATE QRIS (TAMBAHKAN HITUNG EXPIRED_AT)
+// 🔥 PAYMENT - CREATE QRIS (AMBIL EXPIRED_AT DARI BUATQRIS)
 // ============================================================
 app.post('/api/v2/payment/create', async (req, res) => {
     try {
@@ -68,6 +68,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
         
         const amountToBuatQris = subtotal ? (subtotal + (feeAdmin || 0)) : amount;
         
+        // 🔥 1. CREATE QRIS
         const result = await callBuatQris({
             action: 'api_create_qris',
             account_id: BQ_ACCOUNT_ID,
@@ -83,11 +84,26 @@ app.post('/api/v2/payment/create', async (req, res) => {
         const qrisData = result.data.data;
         const transactionId = qrisData.transaction_id;
         
+        // 🔥 2. PANGGIL STATUS UNTUK AMBIL EXPIRED_AT
+        const statusResult = await callBuatQris({
+            action: 'api_check_status',
+            account_id: BQ_ACCOUNT_ID,
+            secret_token: BQ_SECRET_TOKEN,
+            transaction_id: transactionId
+        });
+        
+        const statusData = statusResult.data.data;
+        
+        // 🔥 AMBIL EXPIRED_AT DARI BUATQRIS (jika ada)
+        let expiredAt = statusData.expired_at || null;
+        
+        // 🔥 FALLBACK: Jika BuatQris tidak mengembalikan expired_at, hitung manual 15 menit
+        if (!expiredAt) {
+            expiredAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        }
+        
         // 🔥 HITUNG SERVICE FEE
         const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
-        
-        // 🔥🔥🔥 HITUNG EXPIRED_AT MANUAL (15 menit dari sekarang)
-        const expiredAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
         
         res.status(200).json({
             success: true,
@@ -106,7 +122,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
                 isTest: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')),
                 customer: customer,
                 qrisMethod: qrisData.qris_method || 'qris_two',
-                expiredAt: expiredAt  // ✅ HITUNG MANUAL 15 MENIT
+                expiredAt: expiredAt  // ✅ DARI BUATQRIS (SINKRON!)
             }
         });
         
