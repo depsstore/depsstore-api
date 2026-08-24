@@ -117,7 +117,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
 });
 
 // ============================================================
-// 🔥 PAYMENT - CHECK STATUS (TAMBAHKAN EXPIRED_AT)
+// 🔥 PAYMENT - CHECK STATUS (HANYA UPDATE STATUS, JANGAN HITUNG EXPIRED_AT)
 // ============================================================
 app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
     try {
@@ -130,12 +130,7 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
         
         const statusData = result.data.data;
         
-        // 🔥 AMBIL EXPIRED AT DARI BUATQRIS (atau hitung manual sebagai fallback)
-        let expiredAt = statusData.expired_at || null;
-        if (!expiredAt) {
-            expiredAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // Fallback 15 menit
-        }
-        
+        // 🔥🔥🔥 HANYA KIRIM STATUS, JANGAN HITUNG ULANG EXPIRED_AT!
         res.status(200).json({
             success: true,
             data: {
@@ -146,8 +141,8 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
                 creditAmount: statusData.credit_amount || 0,
                 adminFee: statusData.admin_fee || 0,
                 serviceFee: statusData.admin_fee || 0,
-                expiredAt: expiredAt,  // ✅ KIRIM EXPIRED AT
                 isTest: statusData.is_test || false
+                // 🔥 HAPUS expiredAt DARI SINI!
             }
         });
         
