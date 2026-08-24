@@ -121,7 +121,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
         // Jadi serviceFee = total_amount - amount
         const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
         
-        // 🔥 AMBIL EXPIRED AT DARI BUATQRIS
+        // 🔥🔥🔥 AMBIL EXPIRED AT DARI BUATQRIS (qrisData, BUKAN result.data)
         const expiredAt = qrisData.expired_at || qrisData.expiredAt || null;
         
         res.status(200).json({
@@ -141,7 +141,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
                 isTest: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')),
                 customer: customer,
                 qrisMethod: qrisData.qris_method || 'qris_two',
-                expiredAt: expiredAt  // 🔥 KIRIM EXPIRED AT
+                expiredAt: expiredAt  // 🔥🔥🔥 AMBIL DARI qrisData
             }
         });
         
@@ -188,13 +188,7 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
         const statusData = result.data.data;
         
         // 🔥🔥🔥 AMBIL EXPIRED_AT DARI BUATQRIS
-        // BuatQris biasanya mengirim expired_at dalam format timestamp (detik) atau ISO string
-        let expiredAt = statusData.expired_at || statusData.expiredAt || null;
-        
-        // 🔥 Jika expiredAt berupa angka (timestamp detik), konversi ke ISO string
-        if (expiredAt && typeof expiredAt === 'number') {
-            expiredAt = new Date(expiredAt * 1000).toISOString();
-        }
+        const expiredAt = statusData.expired_at || statusData.expiredAt || null;
         
         res.status(200).json({
             success: true,
@@ -206,7 +200,7 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
                 creditAmount: statusData.credit_amount || 0,
                 adminFee: statusData.admin_fee || 0,
                 serviceFee: statusData.admin_fee || 0,
-                expiredAt: expiredAt,  // 🔥 KIRIM EXPIRED AT DALAM FORMAT ISO
+                expiredAt: expiredAt,  // 🔥 KIRIM EXPIRED AT
                 isTest: statusData.is_test || false
             }
         });
