@@ -60,69 +60,34 @@ async function callBuatQris(params) {
 }
 
 // ============================================================
-// 🔥 PAYMENT - CREATE QRIS
+// 🔥 PAYMENT - CREATE QRIS (TAMBAHKAN HITUNG EXPIRED_AT)
 // ============================================================
 app.post('/api/v2/payment/create', async (req, res) => {
-    console.log('🔥🔥🔥 PAYMENT CREATE ENDPOINT HIT! 🔥🔥🔥');
-    console.log('📦 Request body:', req.body);
-    
     try {
         const { amount, subtotal, feeAdmin, customer, description, isTest, qrisMethod, feeBy, callbackUrl, orderId } = req.body;
         
-        // 🔥 PENTING: amount yang dikirim ke BuatQris = subtotal + feeAdmin
         const amountToBuatQris = subtotal ? (subtotal + (feeAdmin || 0)) : amount;
         
-        // Validasi
-        if (!amountToBuatQris || amountToBuatQris < 1000) {
-            return res.status(400).json({
-                success: false,
-                error: 'Minimal nominal Rp 1.000'
-            });
-        }
-        
-        if (!customer || !customer.name || !customer.email) {
-            return res.status(400).json({
-                success: false,
-                error: 'Nama dan Email customer wajib diisi'
-            });
-        }
-        
-        // 🔥 ORDER ID UNTUK DESKRIPSI
-        const orderDescription = description || `Pembayaran Order ${orderId || 'ORD-' + Date.now()}`;
-        
-        // 🔥 🔥 🔥 PANGGIL BUATQRIS 🔥 🔥 🔥
         const result = await callBuatQris({
             action: 'api_create_qris',
             account_id: BQ_ACCOUNT_ID,
             secret_token: BQ_SECRET_TOKEN,
-            amount: String(amountToBuatQris),  // 🔥 SUBTOTAL + FEE ADMIN
-            description: orderDescription,     // 🔥 ORDER ID
+            amount: String(amountToBuatQris),
+            description: 'Pembayaran Order ' + orderId,
             qris_method: qrisMethod || 'qris_two',
             fee_by: feeBy || 'user',
             callback_url: callbackUrl || 'https://depsstore-api.vercel.app/',
             test: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')) ? '1' : '0'
         });
         
-        console.log(`📊 BuatQris result:`, result);
-        
-        if (!result.data.success) {
-            console.log(`⚠️ BuatQris error:`, result.data.message);
-            return res.status(result.status || 400).json({
-                success: false,
-                error: result.data.message || 'Failed to create payment'
-            });
-        }
-        
         const qrisData = result.data.data;
         const transactionId = qrisData.transaction_id;
         
-        // 🔥 HITUNG SERVICE FEE DENGAN BENAR
-        // total_amount dari BuatQris = amount + serviceFee
-        // Jadi serviceFee = total_amount - amount
+        // 🔥 HITUNG SERVICE FEE
         const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
         
-        // 🔥🔥🔥 AMBIL EXPIRED AT DARI BUATQRIS (qrisData, BUKAN result.data)
-        const expiredAt = qrisData.expired_at || qrisData.expiredAt || null;
+        // 🔥🔥🔥 HITUNG EXPIRED_AT MANUAL (15 menit dari sekarang)
+        const expiredAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
         
         res.status(200).json({
             success: true,
@@ -132,85 +97,63 @@ app.post('/api/v2/payment/create', async (req, res) => {
                 qrUrl: qrisData.qr_url || '',
                 qrisImage: qrisData.qris_image || '',
                 paymentUrl: qrisData.payment_url || '',
-                amount: amountToBuatQris,           // 🔥 SUBTOTAL + FEE ADMIN
-                subtotal: subtotal || amountToBuatQris - (feeAdmin || 0),  // 🔥 SUBTOTAL PRODUK
-                totalAmount: qrisData.total_amount || amountToBuatQris,      // 🔥 TOTAL DARI BUATQRIS
-                serviceFee: serviceFee,              // 🔥 BIAYA LAYANAN (HANYA DARI BUATQRIS)
-                feeAdmin: feeAdmin || 0,             // 🔥 FEE ADMIN
+                amount: amountToBuatQris,
+                subtotal: subtotal || amountToBuatQris - (feeAdmin || 0),
+                totalAmount: qrisData.total_amount || amountToBuatQris,
+                serviceFee: serviceFee,
+                feeAdmin: feeAdmin || 0,
                 status: qrisData.status || 'pending',
                 isTest: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')),
                 customer: customer,
                 qrisMethod: qrisData.qris_method || 'qris_two',
-                expiredAt: expiredAt  // 🔥🔥🔥 AMBIL DARI qrisData
+                expiredAt: expiredAt  // ✅ HITUNG MANUAL 15 MENIT
             }
         });
         
     } catch (error) {
         console.error('❌ Payment create error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
 // ============================================================
-// 🔥 PAYMENT - CHECK STATUS
+// 🔥 PAYMENT - CHECK STATUS (TAMBAHKAN EXPIRED_AT)
 // ============================================================
 app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
-    console.log(`🔍 PAYMENT STATUS CHECK: ${req.params.transactionId}`);
     try {
-        const { transactionId } = req.params;
-        
-        if (!transactionId) {
-            return res.status(400).json({
-                success: false,
-                error: 'Transaction ID is required'
-            });
-        }
-        
         const result = await callBuatQris({
             action: 'api_check_status',
             account_id: BQ_ACCOUNT_ID,
             secret_token: BQ_SECRET_TOKEN,
-            transaction_id: transactionId
+            transaction_id: req.params.transactionId
         });
-        
-        console.log(`📊 BuatQris status result:`, result);
-        
-        if (!result.data.success) {
-            return res.status(result.status || 400).json({
-                success: false,
-                error: result.data.message || 'Failed to check status'
-            });
-        }
         
         const statusData = result.data.data;
         
-        // 🔥🔥🔥 AMBIL EXPIRED_AT DARI BUATQRIS
-        const expiredAt = statusData.expired_at || statusData.expiredAt || null;
+        // 🔥 AMBIL EXPIRED AT DARI BUATQRIS (atau hitung manual sebagai fallback)
+        let expiredAt = statusData.expired_at || null;
+        if (!expiredAt) {
+            expiredAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // Fallback 15 menit
+        }
         
         res.status(200).json({
             success: true,
             data: {
-                transactionId: statusData.transaction_id || transactionId,
+                transactionId: statusData.transaction_id || req.params.transactionId,
                 status: statusData.status || 'pending',
                 amount: statusData.amount || 0,
                 totalAmount: statusData.total_amount || 0,
                 creditAmount: statusData.credit_amount || 0,
                 adminFee: statusData.admin_fee || 0,
                 serviceFee: statusData.admin_fee || 0,
-                expiredAt: expiredAt,  // 🔥 KIRIM EXPIRED AT
+                expiredAt: expiredAt,  // ✅ KIRIM EXPIRED AT
                 isTest: statusData.is_test || false
             }
         });
         
     } catch (error) {
         console.error('❌ Payment status error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
