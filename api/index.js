@@ -276,6 +276,7 @@ app.get('/api/v2/products', async (req, res) => {
 });
 
 // ORDERS
+// ORDERS
 app.get('/api/v2/orders', async (req, res) => {
     try {
         const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
@@ -283,6 +284,9 @@ app.get('/api/v2/orders', async (req, res) => {
         const targetUrl = `${APPS_SCRIPT_URL}?action=getOrders${queryString ? '&' + queryString : ''}`;
         const response = await fetch(targetUrl);
         const data = await response.json();
+        
+        // 🔥 TAMBAHKAN CACHE CONTROL
+        res.setHeader('Cache-Control', 'no-store');
         res.status(response.status).json(data);
     } catch (error) {
         console.error('Orders error:', error);
