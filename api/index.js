@@ -53,6 +53,18 @@ async function callBuatQris(params) {
     
     console.log(`📊 BuatQris response:`, data);
     
+    // 🔥 TAMBAHKAN FALLBACK
+    if (!data.success || !data.data) {
+        return {
+            status: response.status,
+            data: {
+                success: false,
+                error: data.message || 'BuatQris API error',
+                raw: data
+            }
+        };
+    }
+    
     return {
         status: response.status,
         data: data
