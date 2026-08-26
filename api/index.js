@@ -60,6 +60,51 @@ async function callBuatQris(params) {
 }
 
 // ============================================================
+// 🔥 ROOT & HEALTH (TAMBAHAN BARU - PASTI 200)
+// ============================================================
+app.get('/', (req, res) => {
+    res.json({
+        success: true,
+        message: 'DepsStore API v2',
+        version: '2.9.0',
+        endpoints: {
+            health: '/api/v2/system/health',
+            products: '/api/v2/products',
+            orders: '/api/v2/orders',
+            login: '/api/v2/auth/login',
+            register: '/api/v2/auth/register',
+            support: '/api/v2/support',
+            stats: '/api/v2/stats',
+            payment: {
+                create: '/api/v2/payment/create (POST)',
+                status: '/api/v2/payment/status/:id (GET)'
+            }
+        },
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/api/v2', (req, res) => {
+    res.json({
+        success: true,
+        message: 'DepsStore API v2',
+        version: '2.9.0',
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/api/v2/system/health', (req, res) => {
+    res.json({
+        success: true,
+        data: {
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            version: '2.9.0'
+        }
+    });
+});
+
+// ============================================================
 // 🔥 PAYMENT - CREATE QRIS (AMBIL EXPIRED_AT DARI BUATQRIS)
 // ============================================================
 app.post('/api/v2/payment/create', async (req, res) => {
@@ -275,7 +320,6 @@ app.get('/api/v2/products', async (req, res) => {
     }
 });
 
-// ORDERS
 // ORDERS
 app.get('/api/v2/orders', async (req, res) => {
     try {
