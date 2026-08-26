@@ -243,6 +243,133 @@ app.post('/api/v2/support', async (req, res) => {
     }
 });
 
+// ============================================================
+// 🔥 TEST ENDPOINT (TAMBAHAN)
+// ============================================================
+app.get('/api/v2/test', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Test endpoint berhasil',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// ============================================================
+// 🔥 WEBHOOK BUATQRIS (TAMBAHAN)
+// ============================================================
+app.post('/api/webhook/buatqris', async (req, res) => {
+    try {
+        const data = req.body;
+        console.log('Webhook received:', data);
+        
+        // 🔥 Update status payment di database
+        // (Anda bisa menambahkan logika untuk update status)
+        
+        res.json({
+            success: true,
+            message: 'Webhook processed',
+            data: data
+        });
+    } catch (error) {
+        console.error('Webhook error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// 🔥 PAYMENT SANDBOX COMPLETE (TAMBAHAN)
+// ============================================================
+app.post('/api/v2/payment/sandbox/complete', async (req, res) => {
+    try {
+        const { transactionId } = req.body;
+        
+        if (!transactionId) {
+            return res.status(400).json({ success: false, error: 'Transaction ID is required' });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Sandbox transaction completed',
+            data: {
+                transactionId: transactionId,
+                status: 'success'
+            }
+        });
+    } catch (error) {
+        console.error('Sandbox complete error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// 🔥 DASHBOARD (TAMBAHAN)
+// ============================================================
+app.get('/api/v2/dashboard', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getStats`;
+        
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Dashboard error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// 🔥 BACKUPS (TAMBAHAN)
+// ============================================================
+app.get('/api/v2/backups', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getBackups`;
+        
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Backups error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/v2/backups', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=createBackup`;
+        
+        const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body || {})
+        });
+        
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Backup error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// 🔥 LOGS (TAMBAHAN)
+// ============================================================
+app.get('/api/v2/logs', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getLogs`;
+        
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Logs error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 // ============================================================
 // 🔥 ENDPOINT LAIN (JANGAN DIUBAH)
