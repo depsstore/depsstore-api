@@ -84,7 +84,18 @@ app.get('/', (req, res) => {
     });
 });
 
+// 🔥 TAMBAHKAN INI
 app.get('/api/v2', (req, res) => {
+    res.json({
+        success: true,
+        message: 'DepsStore API v2',
+        version: '2.9.0',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// 🔥 TAMBAHKAN INI
+app.get('/api/v2/', (req, res) => {
     res.json({
         success: true,
         message: 'DepsStore API v2',
@@ -189,35 +200,53 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
             transaction_id: req.params.transactionId
         });
         
+        if (!result.data.success) {
+            return res.status(400).json({ success: false, error: result.data.message });
+        }
+        
         const statusData = result.data.data;
         
-        // 🔥🔥🔥 HANYA KIRIM STATUS, JANGAN HITUNG ULANG EXPIRED_AT!
-        res.status(200).json({
+        res.json({
             success: true,
             data: {
-                transactionId: statusData.transaction_id || req.params.transactionId,
-                status: statusData.status || 'pending',
-                amount: statusData.amount || 0,
-                totalAmount: statusData.total_amount || 0,
-                creditAmount: statusData.credit_amount || 0,
-                adminFee: statusData.admin_fee || 0,
-                serviceFee: statusData.admin_fee || 0,
-                isTest: statusData.is_test || false
-                // 🔥 HAPUS expiredAt DARI SINI!
+                transactionId: statusData.transaction_id,
+                status: statusData.status,
+                amount: statusData.amount,
+                totalAmount: statusData.total_amount,
+                isTest: statusData.is_test
             }
         });
         
     } catch (error) {
-        console.error('❌ Payment status error:', error);
+        console.error('Payment status error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
+app.post('/api/v2/support', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=createSupport`;
+        
+        const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body)
+        });
+        
+        const data = await response.json();
+        res.status(response.status).json(data);
+        
+    } catch (error) {
+        console.error('Support error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
 // ============================================================
 // 🔥 ENDPOINT LAIN (JANGAN DIUBAH)
 // ============================================================
-
-// AUTH - LOGIN
 app.post('/api/v2/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -243,14 +272,10 @@ app.post('/api/v2/auth/login', async (req, res) => {
         
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// AUTH - REGISTER
 app.post('/api/v2/auth/register', async (req, res) => {
     try {
         const { name, email, password } = req.body;
@@ -276,10 +301,7 @@ app.post('/api/v2/auth/register', async (req, res) => {
         
     } catch (error) {
         console.error('Register error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
