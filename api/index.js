@@ -149,6 +149,15 @@ app.post('/api/v2/payment/create', async (req, res) => {
             test: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')) ? '1' : '0'
         });
         
+        // 🔥 CEK HASIL DARI BUATQRIS
+        if (!result.data.success || !result.data.data) {
+            return res.status(result.status || 400).json({
+                success: false,
+                error: result.data.error || result.data.message || 'BuatQris API error',
+                detail: result.data.raw || null
+            });
+        }
+        
         const qrisData = result.data.data;
         const transactionId = qrisData.transaction_id;
         
@@ -159,6 +168,15 @@ app.post('/api/v2/payment/create', async (req, res) => {
             secret_token: BQ_SECRET_TOKEN,
             transaction_id: transactionId
         });
+        
+        // 🔥 CEK HASIL STATUS
+        if (!statusResult.data.success || !statusResult.data.data) {
+            return res.status(statusResult.status || 400).json({
+                success: false,
+                error: statusResult.data.error || 'Failed to check status',
+                detail: statusResult.data.raw || null
+            });
+        }
         
         const statusData = statusResult.data.data;
         
@@ -190,7 +208,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
                 isTest: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')),
                 customer: customer,
                 qrisMethod: qrisData.qris_method || 'qris_two',
-                expiredAt: expiredAt  // ✅ DARI BUATQRIS (SINKRON!)
+                expiredAt: expiredAt
             }
         });
         
