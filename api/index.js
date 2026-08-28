@@ -267,36 +267,15 @@ app.post('/api/v2/support', async (req, res) => {
 // ============================================================
 app.get('/api/v2/stats', async (req, res) => {
     try {
-        const result = await callBuatQris({
-            action: 'api_get_stats',
-            account_id: BQ_ACCOUNT_ID,
-            secret_token: BQ_SECRET_TOKEN
-        });
-
-        if (result.data && result.data.success && result.data.data) {
-            const stats = result.data.data;
-            return res.json({
-                success: true,
-                data: {
-                    products: stats.total_products || 0,
-                    customers: stats.total_customers || 0,
-                    users: stats.total_users || 0,
-                    orders: stats.total_transactions || 0,
-                    revenue: stats.total_revenue || 0,
-                    fee: stats.total_fee || 0,
-                    todayTransactions: stats.today_transactions || 0,
-                    pendingTransactions: stats.pending_transactions || 0,
-                    successRate: stats.success_rate || '0%',
-                    timestamp: new Date().toISOString()
-                }
-            });
-        }
-
-        // Fallback ke Apps Script
-        console.log('⚠️ BuatQris stats unavailable, using Apps Script fallback...');
+        console.log('📊 Fetching stats from Apps Script...');
         const data = await callAppsScript('getStats');
+        
+        // 🔥 TAMBAHKAN DATA DARI BUATQRIS (jika ada transaksi)
+        // Tapi karena BuatQris tidak punya api_get_stats, kita pakai Apps Script saja
+        
+        console.log('📊 Stats data:', data);
         res.json(data);
-
+        
     } catch (error) {
         console.error('❌ Stats error:', error);
         res.status(200).json({
@@ -306,11 +285,6 @@ app.get('/api/v2/stats', async (req, res) => {
                 customers: 0,
                 users: 0,
                 orders: 0,
-                revenue: 0,
-                fee: 0,
-                todayTransactions: 0,
-                pendingTransactions: 0,
-                successRate: '0%',
                 timestamp: new Date().toISOString()
             }
         });
@@ -322,49 +296,14 @@ app.get('/api/v2/stats', async (req, res) => {
 // ============================================================
 app.get('/api/v2/dashboard', async (req, res) => {
     try {
-        const result = await callBuatQris({
-            action: 'api_get_dashboard',
-            account_id: BQ_ACCOUNT_ID,
-            secret_token: BQ_SECRET_TOKEN
+        const data = await callAppsScript('getStats');
+        res.json({
+            success: true,
+            data: data.data || {}
         });
-
-        if (result.data && result.data.success) {
-            return res.json({
-                success: true,
-                data: result.data.data
-            });
-        }
-
-        // Fallback ke stats
-        const statsResult = await callBuatQris({
-            action: 'api_get_stats',
-            account_id: BQ_ACCOUNT_ID,
-            secret_token: BQ_SECRET_TOKEN
-        });
-
-        if (statsResult.data && statsResult.data.success) {
-            const stats = statsResult.data.data;
-            return res.json({
-                success: true,
-                data: {
-                    totalTransactions: stats.total_transactions || 0,
-                    totalRevenue: stats.total_revenue || 0,
-                    totalFee: stats.total_fee || 0,
-                    todayTransactions: stats.today_transactions || 0,
-                    pendingTransactions: stats.pending_transactions || 0,
-                    successRate: stats.success_rate || '0%'
-                }
-            });
-        }
-
-        throw new Error('No data available');
-
     } catch (error) {
         console.error('❌ Dashboard error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
