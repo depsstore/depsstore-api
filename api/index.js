@@ -424,44 +424,64 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
 // ============================================================
 // WEBHOOK BUATQRIS - SIMPAN KE SPREADSHEET VIA APPS SCRIPT
 // ============================================================
+// ============================================================
+// WEBHOOK BUATQRIS - SIMPAN KE SPREADSHEET
+// ============================================================
 app.post('/api/webhook/buatqris', async (req, res) => {
     try {
         const data = req.body;
         console.log('📨 Webhook received:', data);
 
-        // 🔥 1. VALIDASI DATA
         if (!data.transaction_id) {
-            console.error('❌ No transaction_id in webhook');
             return res.status(400).json({
                 success: false,
                 error: 'transaction_id is required'
             });
         }
 
-        // 🔥 2. SIMPAN KE SPREADSHEET VIA APPS SCRIPT
-        const saveResult = await callAppsScript('saveTransaction', {
-            transaction_id: data.transaction_id,
-            amount: data.amount || data.total || 0,
-            status: data.status || 'pending',
-            customer_name: data.customer_name || data.customer || 'Webhook Customer',
-            customer_email: data.customer_email || data.email || '',
-            customer_phone: data.customer_phone || data.phone || '',
-            payment_method: data.payment_method || 'qris',
-            qr_url: data.qr_url || '',
-            payment_url: data.payment_url || '',
-            created_at: data.created_at || new Date().toISOString(),
-            is_test: data.is_test || false
+        // 🔥 PANGGIL APPS SCRIPT DENGAN action=saveTransaction
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
+        if (!APPS_SCRIPT_URL) {
+            console.error('❌ APPS_SCRIPT_URL not configured!');
+            return res.status(500).json({
+                success: false,
+                error: 'APPS_SCRIPT_URL not configured'
+            });
+        }
+
+        const targetUrl = `${APPS_SCRIPT_URL}?action=saveTransaction`;
+        console.log('📡 Sending to Apps Script:', targetUrl);
+
+        const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                transaction_id: data.transaction_id,
+                amount: data.amount || data.total || 0,
+                status: data.status || 'pending',
+                customer_name: data.customer_name || data.customer || 'Webhook Customer',
+                customer_email: data.customer_email || data.email || '',
+                customer_phone: data.customer_phone || data.phone || '',
+                payment_method: data.payment_method || 'qris',
+                qr_url: data.qr_url || '',
+                payment_url: data.payment_url || '',
+                created_at: data.created_at || new Date().toISOString(),
+                expired_at: data.expired_at || '',
+                is_test: data.is_test || false
+            })
         });
 
-        console.log('💾 Transaction saved to Spreadsheet:', saveResult);
+        const result = await response.json();
+        console.log('💾 Apps Script response:', result);
 
-        // 🔥 3. RESPON KE BUATQRIS
         res.json({
             success: true,
-            message: 'Webhook processed and saved',
+            message: 'Webhook processed',
             data: {
                 transaction_id: data.transaction_id,
-                saved: saveResult.success
+                saved: result.success || false
             }
         });
 
