@@ -424,14 +424,29 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
 app.post('/api/webhook/buatqris', async (req, res) => {
     try {
         const data = req.body;
-        console.log('Webhook received:', data);
+        console.log('📨 Webhook received:', data);
+
+        // 🔥 Simpan transaksi ke Spreadsheet via Apps Script
+        if (data.transaction_id && data.status) {
+            const saveResult = await callAppsScript('saveTransaction', {
+                transaction_id: data.transaction_id,
+                amount: data.amount || 0,
+                status: data.status || 'pending',
+                customer_name: data.customer_name || '',
+                customer_email: data.customer_email || '',
+                payment_method: 'qris',
+                created_at: data.created_at || new Date().toISOString()
+            });
+            console.log('💾 Transaction saved:', saveResult);
+        }
+
         res.json({
             success: true,
             message: 'Webhook processed',
             data: data
         });
     } catch (error) {
-        console.error('Webhook error:', error);
+        console.error('❌ Webhook error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
