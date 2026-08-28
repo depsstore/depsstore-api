@@ -427,6 +427,9 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
 // ============================================================
 // WEBHOOK BUATQRIS - SIMPAN KE SPREADSHEET
 // ============================================================
+// ============================================================
+// WEBHOOK BUATQRIS - SIMPAN KE SPREADSHEET
+// ============================================================
 app.post('/api/webhook/buatqris', async (req, res) => {
     try {
         const data = req.body;
@@ -439,7 +442,7 @@ app.post('/api/webhook/buatqris', async (req, res) => {
             });
         }
 
-        // 🔥 PANGGIL APPS SCRIPT DENGAN action=saveTransaction
+        // 🔥 PANGGIL APPS SCRIPT LANGSUNG dengan action=saveTransaction
         const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
         if (!APPS_SCRIPT_URL) {
             console.error('❌ APPS_SCRIPT_URL not configured!');
@@ -450,7 +453,7 @@ app.post('/api/webhook/buatqris', async (req, res) => {
         }
 
         const targetUrl = `${APPS_SCRIPT_URL}?action=saveTransaction`;
-        console.log('📡 Sending to Apps Script:', targetUrl);
+        console.log('📡 Sending to Apps Script URL:', targetUrl);
 
         const response = await fetch(targetUrl, {
             method: 'POST',
