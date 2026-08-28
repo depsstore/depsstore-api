@@ -421,33 +421,56 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
     }
 });
 
+// ============================================================
+// WEBHOOK BUATQRIS - SIMPAN KE SPREADSHEET VIA APPS SCRIPT
+// ============================================================
 app.post('/api/webhook/buatqris', async (req, res) => {
     try {
         const data = req.body;
         console.log('📨 Webhook received:', data);
 
-        // 🔥 Simpan transaksi ke Spreadsheet via Apps Script
-        if (data.transaction_id && data.status) {
-            const saveResult = await callAppsScript('saveTransaction', {
-                transaction_id: data.transaction_id,
-                amount: data.amount || 0,
-                status: data.status || 'pending',
-                customer_name: data.customer_name || '',
-                customer_email: data.customer_email || '',
-                payment_method: 'qris',
-                created_at: data.created_at || new Date().toISOString()
+        // 🔥 1. VALIDASI DATA
+        if (!data.transaction_id) {
+            console.error('❌ No transaction_id in webhook');
+            return res.status(400).json({
+                success: false,
+                error: 'transaction_id is required'
             });
-            console.log('💾 Transaction saved:', saveResult);
         }
 
+        // 🔥 2. SIMPAN KE SPREADSHEET VIA APPS SCRIPT
+        const saveResult = await callAppsScript('saveTransaction', {
+            transaction_id: data.transaction_id,
+            amount: data.amount || data.total || 0,
+            status: data.status || 'pending',
+            customer_name: data.customer_name || data.customer || 'Webhook Customer',
+            customer_email: data.customer_email || data.email || '',
+            customer_phone: data.customer_phone || data.phone || '',
+            payment_method: data.payment_method || 'qris',
+            qr_url: data.qr_url || '',
+            payment_url: data.payment_url || '',
+            created_at: data.created_at || new Date().toISOString(),
+            is_test: data.is_test || false
+        });
+
+        console.log('💾 Transaction saved to Spreadsheet:', saveResult);
+
+        // 🔥 3. RESPON KE BUATQRIS
         res.json({
             success: true,
-            message: 'Webhook processed',
-            data: data
+            message: 'Webhook processed and saved',
+            data: {
+                transaction_id: data.transaction_id,
+                saved: saveResult.success
+            }
         });
+
     } catch (error) {
         console.error('❌ Webhook error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
 });
 
