@@ -475,15 +475,68 @@ app.get('/api/v2/products', async (req, res) => {
 // ============================================================
 // ORDERS - FALLBACK KE APPS SCRIPT
 // ============================================================
+// ============================================================
+// ORDERS - AMBIL DARI BUATQRIS (FALLBACK KE APPS SCRIPT)
+// ============================================================
 app.get('/api/v2/orders', async (req, res) => {
     try {
-        const queryString = new URLSearchParams(req.query).toString();
-        const data = await callAppsScript('getOrders' + (queryString ? '&' + queryString : ''));
+        // 🔥 Coba ambil dari BuatQris
+        const result = await callBuatQris({
+            action: 'api_get_transactions',  // Coba action ini
+            account_id: BQ_ACCOUNT_ID,
+            secret_token: BQ_SECRET_TOKEN,
+            limit: req.query.limit || 100
+        });
+
+        // Jika BuatQris mengembalikan data transaksi
+        if (result.data && result.data.success && result.data.data) {
+            const transactions = result.data.data;
+            
+            // Format ulang agar sesuai dengan struktur frontend
+            const formattedOrders = transactions.map(function(tx) {
+                return {
+                    id: tx.transaction_id || tx.id,
+                    order_number: tx.transaction_id || tx.id,
+                    customer_name: tx.customer_name || tx.customer || 'Pelanggan',
+                    customer_email: tx.customer_email || '',
+                    total_price: tx.amount || tx.total || 0,
+                    total: tx.amount || tx.total || 0,
+                    status: tx.status || 'pending',
+                    payment_status: tx.status || 'pending',
+                    payment_method: 'qris',
+                    transaction_id: tx.transaction_id || tx.id,
+                    created_at: tx.created_at || tx.createdAt || new Date().toISOString(),
+                    updated_at: tx.updated_at || tx.updatedAt || new Date().toISOString(),
+                    qr_url: tx.qr_url || '',
+                    payment_url: tx.payment_url || '',
+                    expired_at: tx.expired_at || tx.expiredAt || null,
+                    is_test: tx.is_test || false
+                };
+            });
+
+            return res.json({
+                success: true,
+                items: formattedOrders,
+                total: formattedOrders.length,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // 🔥 FALLBACK: Jika BuatQris gagal, ambil dari Apps Script
+        console.log('⚠️ BuatQris transactions unavailable, using Apps Script fallback...');
+        const data = await callAppsScript('getOrders');
         res.setHeader('Cache-Control', 'no-store');
         res.json(data);
+
     } catch (error) {
-        console.error('Orders error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        console.error('❌ Orders error:', error);
+        // Fallback ke Apps Script
+        try {
+            const data = await callAppsScript('getOrders');
+            res.json(data);
+        } catch (fallbackError) {
+            res.status(500).json({ success: false, error: error.message });
+        }
     }
 });
 
