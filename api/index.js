@@ -518,6 +518,91 @@ app.get('/api/v2/orders', async (req, res) => {
 });
 
 // ============================================================
+// 🔥 SYSTEM INFO (Database, Status, Versi)
+// ============================================================
+app.get('/api/v2/system/info', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getSystemInfo`;
+        
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('System info error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// 🔥 LOGS
+// ============================================================
+app.get('/api/v2/logs', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getLogs`;
+        
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Logs error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// 🔥 BACKUPS
+// ============================================================
+app.get('/api/v2/backups', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getBackups`;
+        
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Backups error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// 🔥 USERS
+// ============================================================
+app.get('/api/v2/users', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getUsers`;
+        
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Users error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// 🔥 CUSTOMERS
+// ============================================================
+app.get('/api/v2/customers', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+        const targetUrl = `${APPS_SCRIPT_URL}?action=getCustomers`;
+        
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('Customers error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
 // 🔥 404 HANDLER
 // ============================================================
 app.use((req, res) => {
