@@ -467,6 +467,58 @@ app.get('/api/v2/dashboard', async (req, res) => {
 });
 
 // ============================================================
+// 🔥 DASHBOARD - DATA LENGKAP DARI BUATQRIS
+// ============================================================
+app.get('/api/v2/dashboard', async (req, res) => {
+    try {
+        // Ambil data dari BuatQris
+        const result = await callBuatQris({
+            action: 'api_get_dashboard',
+            account_id: BQ_ACCOUNT_ID,
+            secret_token: BQ_SECRET_TOKEN
+        });
+
+        if (result.data && result.data.success) {
+            return res.json({
+                success: true,
+                data: result.data.data
+            });
+        }
+
+        // Fallback ke stats
+        const statsResult = await callBuatQris({
+            action: 'api_get_stats',
+            account_id: BQ_ACCOUNT_ID,
+            secret_token: BQ_SECRET_TOKEN
+        });
+
+        if (statsResult.data && statsResult.data.success) {
+            const stats = statsResult.data.data;
+            return res.json({
+                success: true,
+                data: {
+                    totalTransactions: stats.total_transactions || 0,
+                    totalRevenue: stats.total_revenue || 0,
+                    totalFee: stats.total_fee || 0,
+                    todayTransactions: stats.today_transactions || 0,
+                    pendingTransactions: stats.pending_transactions || 0,
+                    successRate: stats.success_rate || '0%'
+                }
+            });
+        }
+
+        throw new Error('No data available');
+
+    } catch (error) {
+        console.error('❌ Dashboard error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============================================================
 // 🔥 BACKUPS (TAMBAHAN)
 // ============================================================
 app.get('/api/v2/backups', async (req, res) => {
