@@ -590,7 +590,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
         } = req.body;
 
         const amountToBuatQris = subtotal ? (subtotal + (feeAdmin || 0)) : amount;
-
+        
         const result = await callBuatQris({
             action: 'api_create_qris',
             account_id: BQ_ACCOUNT_ID,
@@ -599,7 +599,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
             description: description || 'Pembayaran Order ' + orderId,
             qris_method: qrisMethod || 'qris_two',
             fee_by: feeBy || 'user',
-            callback_url: callbackUrl || 'https://depsstore-api.vercel.app/',
+            callback_url: callbackUrl || 'https://depsstore-api.vercel.app/api/webhook/buatqris',  // ✅ BENAR
             test: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')) ? '1' : '0'
         });
 
@@ -841,6 +841,51 @@ app.post('/api/webhook/test', async (req, res) => {
     } catch (error) {
         console.error('Test webhook error:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// UPDATE ORDER STATUS - MANUAL
+// ============================================================
+
+app.post('/api/v2/orders/update-status', async (req, res) => {
+    try {
+        const { transaction_id, status } = req.body;
+
+        if (!transaction_id || !status) {
+            return res.status(400).json({
+                success: false,
+                error: 'transaction_id and status are required'
+            });
+        }
+
+        console.log('🔄 Updating status:', transaction_id, '→', status);
+
+        const response = await fetch(`${APPS_SCRIPT_URL}?action=updateOrderStatus`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                transaction_id: transaction_id,
+                status: status,
+                updated_at: new Date().toISOString()
+            })
+        });
+
+        const result = await response.json();
+        console.log('✅ Status update result:', result);
+
+        res.json({
+            success: true,
+            message: 'Status updated',
+            result: result
+        });
+
+    } catch (error) {
+        console.error('❌ Update status error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
 });
 
