@@ -195,6 +195,10 @@ app.get('/api/v2/test', (req, res) => {
 // PRODUCTS - DARI APPS SCRIPT
 // ============================================================
 
+// ============================================================
+// PRODUCTS - DARI APPS SCRIPT
+// ============================================================
+
 app.get('/api/v2/products', async (req, res) => {
     try {
         console.log('📦 Fetching products...');
