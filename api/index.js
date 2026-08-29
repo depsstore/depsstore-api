@@ -89,18 +89,43 @@ async function callBuatQris(params) {
  */
 async function callAppsScript(action, body = null) {
     const targetUrl = `${APPS_SCRIPT_URL}?action=${action}`;
-
+    console.log('📡 Calling Apps Script URL:', targetUrl);
+    console.log('📦 Body:', body ? JSON.stringify(body) : 'NO BODY');
+    
     const options = {
-        method: body ? 'POST' : 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
     };
-
+    
+    // 🔥 PASTIKAN BODY DIKIRIM
     if (body) {
         options.body = JSON.stringify(body);
+        console.log('📦 Body string:', options.body);
+    } else {
+        console.log('⚠️ No body to send');
     }
-
-    const response = await fetch(targetUrl, options);
-    return await response.json();
+    
+    try {
+        const response = await fetch(targetUrl, options);
+        const text = await response.text();
+        console.log('📥 Raw response:', text.substring(0, 500));
+        
+        try {
+            return JSON.parse(text);
+        } catch (parseError) {
+            console.error('❌ Failed to parse JSON:', parseError.message);
+            return { 
+                success: false, 
+                error: 'Invalid JSON response from Apps Script',
+                raw: text.substring(0, 200)
+            };
+        }
+    } catch (error) {
+        console.error('❌ Fetch error:', error.message);
+        return { success: false, error: error.message };
+    }
 }
 
 /**
