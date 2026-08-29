@@ -422,12 +422,6 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
 });
 
 // ============================================================
-// WEBHOOK BUATQRIS - SIMPAN KE SPREADSHEET VIA APPS SCRIPT
-// ============================================================
-// ============================================================
-// WEBHOOK BUATQRIS - SIMPAN KE SPREADSHEET
-// ============================================================
-// ============================================================
 // WEBHOOK BUATQRIS - SIMPAN KE SPREADSHEET
 // ============================================================
 app.post('/api/webhook/buatqris', async (req, res) => {
@@ -494,6 +488,48 @@ app.post('/api/webhook/buatqris', async (req, res) => {
             success: false,
             error: error.message
         });
+    }
+});
+
+// ============================================================
+// TEST WEBHOOK ENDPOINT
+// ============================================================
+app.post('/api/webhook/test', async (req, res) => {
+    try {
+        const testData = {
+            transaction_id: 'TXN-TEST-' + Date.now(),
+            amount: 10000,
+            status: 'pending',
+            customer_name: 'Test Customer',
+            customer_email: 'test@example.com',
+            customer_phone: '08123456789',
+            payment_method: 'qris',
+            qr_url: 'https://example.com/qr.png',
+            created_at: new Date().toISOString()
+        };
+
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
+        if (!APPS_SCRIPT_URL) {
+            return res.status(500).json({ success: false, error: 'APPS_SCRIPT_URL not configured' });
+        }
+
+        const targetUrl = `${APPS_SCRIPT_URL}?action=saveTransaction`;
+        const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(testData)
+        });
+
+        const result = await response.json();
+        res.json({
+            success: true,
+            message: 'Test webhook sent',
+            appsScriptResponse: result
+        });
+
+    } catch (error) {
+        console.error('Test webhook error:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
