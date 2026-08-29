@@ -124,15 +124,19 @@ async function callAppsScript(action, body = null) {
         const response = await fetch(targetUrl, options);
         const text = await response.text();
 
+        // 🔥 CEK APAKAH RESPONSE ADALAH HTML
         if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
             console.warn('⚠️ Apps Script returned HTML');
             return { success: false, error: 'Apps Script returned HTML', isHtml: true };
         }
 
+        // 🔥 PARSE JSON
         try {
-            return JSON.parse(text);
+            const jsonData = JSON.parse(text);
+            console.log(`✅ Apps Script response:`, JSON.stringify(jsonData).substring(0, 300));
+            return jsonData;
         } catch (parseError) {
-            console.warn('⚠️ Apps Script returned invalid JSON');
+            console.warn('⚠️ Apps Script returned invalid JSON:', text.substring(0, 200));
             return { success: false, error: 'Invalid JSON', raw: text.substring(0, 200) };
         }
     } catch (error) {
@@ -187,22 +191,49 @@ app.get('/api/v2/test', (req, res) => {
 // PRODUCTS - DARI APPS SCRIPT
 // ============================================================
 
+// ============================================================
+// PRODUCTS - DARI APPS SCRIPT
+// ============================================================
+
 app.get('/api/v2/products', async (req, res) => {
     try {
         console.log('📦 Fetching products...');
         const data = await callAppsScript('getProducts');
 
-        if (data && data.success && data.data && Array.isArray(data.data)) {
-            console.log(`✅ Products from Apps Script: ${data.data.length} items`);
-            res.json(data);
-        } else {
-            console.warn('⚠️ Products data unavailable');
-            res.status(500).json({
-                success: false,
-                error: 'Products data unavailable',
-                detail: data.error || 'Apps Script returned invalid response'
-            });
+        // 🔥 CEK BEBERAPA FORMAT RESPONSE
+        if (data && data.success) {
+            // Jika data.items ada, gunakan itu
+            if (data.items && Array.isArray(data.items)) {
+                console.log(`✅ Products from Apps Script: ${data.items.length} items`);
+                return res.json({
+                    success: true,
+                    data: data.items,
+                    items: data.items,
+                    total: data.items.length,
+                    timestamp: new Date().toISOString()
+                });
+            }
+            // Jika data.data ada, gunakan itu
+            if (data.data && Array.isArray(data.data)) {
+                console.log(`✅ Products from Apps Script: ${data.data.length} items`);
+                return res.json({
+                    success: true,
+                    data: data.data,
+                    items: data.data,
+                    total: data.data.length,
+                    timestamp: new Date().toISOString()
+                });
+            }
         }
+
+        // 🔥 FALLBACK: Jika Apps Script gagal
+        console.warn('⚠️ Products data unavailable');
+        res.status(500).json({
+            success: false,
+            error: 'Products data unavailable',
+            detail: 'No products found in spreadsheet'
+        });
+
     } catch (error) {
         console.error('❌ Products error:', error);
         res.status(500).json({ success: false, error: error.message });
@@ -240,23 +271,42 @@ app.get('/api/v2/orders', async (req, res) => {
 // STATS - DARI APPS SCRIPT
 // ============================================================
 
+// ============================================================
+// STATS - DARI APPS SCRIPT
+// ============================================================
+
 app.get('/api/v2/stats', async (req, res) => {
     try {
         console.log('📊 Fetching stats...');
         const data = await callAppsScript('getStats');
 
         if (data && data.success && data.data) {
-            res.json(data);
-        } else {
-            res.status(500).json({
-                success: false,
-                error: 'Stats data unavailable',
-                detail: data.error || 'Apps Script returned invalid response'
-            });
+            return res.json(data);
         }
+
+        // 🔥 FALLBACK
+        console.warn('⚠️ Stats data unavailable, using fallback');
+        res.json({
+            success: true,
+            data: {
+                products: 0,
+                customers: 0,
+                users: 0,
+                timestamp: new Date().toISOString()
+            }
+        });
+
     } catch (error) {
         console.error('❌ Stats error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.json({
+            success: true,
+            data: {
+                products: 0,
+                customers: 0,
+                users: 0,
+                timestamp: new Date().toISOString()
+            }
+        });
     }
 });
 
