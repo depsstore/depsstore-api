@@ -1,6 +1,6 @@
 // api/index.js - Vercel Serverless Function
 // DepsStore API v2 - Complete Backend Integration
-// Version: 2.9.0
+// Version: 2.9.1 - NO DUMMY DATA
 
 const express = require('express');
 const cors = require('cors');
@@ -23,7 +23,6 @@ const BQ_ACCOUNT_ID = process.env.BUATQRIS_ACCOUNT_ID;
 const BQ_SECRET_TOKEN = process.env.BUATQRIS_SECRET_TOKEN;
 const BQ_MODE = process.env.BUATQRIS_MODE || 'sandbox';
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
-
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -129,6 +128,13 @@ function generateTransactionId() {
 }
 
 /**
+ * Generate order ID
+ */
+function generateOrderId() {
+    return 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4).toUpperCase();
+}
+
+/**
  * Format order data for saveTransaction
  */
 function formatOrderData(data) {
@@ -156,10 +162,11 @@ function formatOrderData(data) {
         quantity: data.quantity || 1,
         created_at: data.created_at || new Date().toISOString(),
         expired_at: data.expired_at || '',
-        customer: data.customer || {}
+        customer: data.customer || {},
+        fee_admin: data.fee_admin || 0,
+        service_fee: data.service_fee || 0
     };
 }
-
 
 // ============================================================
 // ROOT & HEALTH ENDPOINTS
@@ -169,7 +176,7 @@ app.get('/', (req, res) => {
     res.json({
         success: true,
         message: 'DepsStore API v2',
-        version: '2.9.0',
+        version: '2.9.1',
         endpoints: {
             health: '/api/v2/system/health',
             products: '/api/v2/products',
@@ -195,7 +202,7 @@ app.get('/api/v2', (req, res) => {
     res.json({
         success: true,
         message: 'DepsStore API v2',
-        version: '2.9.0',
+        version: '2.9.1',
         timestamp: new Date().toISOString()
     });
 });
@@ -206,7 +213,8 @@ app.get('/api/v2/system/health', (req, res) => {
         data: {
             status: 'healthy',
             timestamp: new Date().toISOString(),
-            version: '2.9.0'
+            version: '2.9.1',
+            environment: process.env.NODE_ENV || 'development'
         }
     });
 });
@@ -219,78 +227,32 @@ app.get('/api/v2/test', (req, res) => {
     });
 });
 
-
 // ============================================================
-// SYSTEM INFO
+// SYSTEM INFO - DARI APPS SCRIPT (TANPA DUMMY)
 // ============================================================
 
 app.get('/api/v2/system/info', async (req, res) => {
     try {
         const data = await callAppsScript('getSystemInfo');
-        const defaultStatus = {
-            googleSheetsStatus: 'Terhubung',
-            spreadsheet_id: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-            total_sheets: 10,
-            systemHealth: 'healthy',
-            version: '2.9.0',
-            environment: process.env.NODE_ENV || 'development',
-            gatewayQRIS: 'Aktif',
-            webhook: 'Aktif',
-            callback: 'Aktif',
-            products: 'Aktif',
-            serverStatus: 'Online',
-            uptime: '99.9%',
-            responseTime: '120ms',
-            securityStatus: { ssl: 'Aktif', firewall: 'Aktif', rateLimit: 'Aktif', jwt: 'Aktif' },
-            integrations: { drive: 'Terhubung', imageStorage: 'Aktif', localStorage: 'Aktif', buatqris: 'Terhubung', appsScript: 'Terhubung', sheets: 'Terhubung' },
-            notifications: { email: 'Aktif', whatsapp: 'Aktif', inApp: 'Aktif' },
-            tasks: { autoBackup: 'Aktif', cleanupLog: 'Aktif', syncData: 'Aktif' },
-            users: { adminOnline: '2', userOnline: '5', totalUsers: '0' },
-            activities: { lastLogin: 'Baru saja', lastProduct: 'Tidak ada', lastBackup: 'Tidak ada' },
-            build: { status: 'Success', deployStatus: 'Success', domain: 'Aktif', cdn: 'Aktif' },
-            uiux: { responsive: 'Aktif', darkMode: 'Aktif', pwa: 'Aktif', loader: 'Aktif' },
-            performance: { loadTime: '1.2s', responseTime: '120ms', uptime: '99.9%' }
-        };
-
+        
         if (data.success && data.data) {
-            data.data = { ...defaultStatus, ...data.data };
+            res.json(data);
         } else {
-            data = { success: true, data: defaultStatus };
+            // 🚨 TAMPILKAN ERROR, BUKAN DUMMY
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch system info from Apps Script',
+                detail: data.error || 'Unknown error'
+            });
         }
-
-        res.json(data);
     } catch (error) {
         console.error('System info error:', error);
-        res.status(200).json({
-            success: true,
-            data: {
-                googleSheetsStatus: 'Terhubung',
-                spreadsheet_id: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-                total_sheets: 10,
-                systemHealth: 'healthy',
-                version: '2.9.0',
-                environment: process.env.NODE_ENV || 'development',
-                gatewayQRIS: 'Aktif',
-                webhook: 'Aktif',
-                callback: 'Aktif',
-                products: 'Aktif',
-                serverStatus: 'Online',
-                uptime: '99.9%',
-                responseTime: '120ms',
-                securityStatus: { ssl: 'Aktif', firewall: 'Aktif', rateLimit: 'Aktif', jwt: 'Aktif' },
-                integrations: { drive: 'Terhubung', imageStorage: 'Aktif', localStorage: 'Aktif', buatqris: 'Terhubung', appsScript: 'Terhubung', sheets: 'Terhubung' },
-                notifications: { email: 'Aktif', whatsapp: 'Aktif', inApp: 'Aktif' },
-                tasks: { autoBackup: 'Aktif', cleanupLog: 'Aktif', syncData: 'Aktif' },
-                users: { adminOnline: '2', userOnline: '5', totalUsers: '0' },
-                activities: { lastLogin: 'Baru saja', lastProduct: 'Tidak ada', lastBackup: 'Tidak ada' },
-                build: { status: 'Success', deployStatus: 'Success', domain: 'Aktif', cdn: 'Aktif' },
-                uiux: { responsive: 'Aktif', darkMode: 'Aktif', pwa: 'Aktif', loader: 'Aktif' },
-                performance: { loadTime: '1.2s', responseTime: '120ms', uptime: '99.9%' }
-            }
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
-
 
 // ============================================================
 // AUTH ENDPOINTS
@@ -334,7 +296,6 @@ app.post('/api/v2/auth/register', async (req, res) => {
     }
 });
 
-
 // ============================================================
 // SUPPORT ENDPOINTS
 // ============================================================
@@ -349,9 +310,8 @@ app.post('/api/v2/support', async (req, res) => {
     }
 });
 
-
 // ============================================================
-// STATS & DASHBOARD
+// STATS & DASHBOARD - DARI APPS SCRIPT (TANPA DUMMY)
 // ============================================================
 
 app.get('/api/v2/stats', async (req, res) => {
@@ -359,18 +319,21 @@ app.get('/api/v2/stats', async (req, res) => {
         console.log('Fetching stats from Apps Script...');
         const data = await callAppsScript('getStats');
         console.log('Stats data:', data);
-        res.json(data);
+        
+        if (data.success && data.data) {
+            res.json(data);
+        } else {
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch stats',
+                detail: data.error || 'Unknown error'
+            });
+        }
     } catch (error) {
         console.error('Stats error:', error);
-        res.status(200).json({
-            success: true,
-            data: {
-                products: 0,
-                customers: 0,
-                users: 0,
-                orders: 0,
-                timestamp: new Date().toISOString()
-            }
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -378,47 +341,80 @@ app.get('/api/v2/stats', async (req, res) => {
 app.get('/api/v2/dashboard', async (req, res) => {
     try {
         const data = await callAppsScript('getStats');
-        res.json({
-            success: true,
-            data: data.data || {}
-        });
+        
+        if (data.success && data.data) {
+            res.json({
+                success: true,
+                data: data.data
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch dashboard data',
+                detail: data.error || 'Unknown error'
+            });
+        }
     } catch (error) {
         console.error('Dashboard error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
 });
 
-
 // ============================================================
-// PRODUCTS
+// PRODUCTS - DARI APPS SCRIPT (TANPA DUMMY)
 // ============================================================
 
 app.get('/api/v2/products', async (req, res) => {
     try {
         const data = await callAppsScript('getProducts');
-        res.json(data);
+        
+        if (data.success && data.data) {
+            res.json(data);
+        } else {
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch products',
+                detail: data.error || 'Unknown error'
+            });
+        }
     } catch (error) {
         console.error('Products error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
 });
 
-
 // ============================================================
-// ORDERS - GET
+// ORDERS - GET - DARI APPS SCRIPT (TANPA DUMMY)
 // ============================================================
 
 app.get('/api/v2/orders', async (req, res) => {
     try {
         const data = await callAppsScript('getOrders');
         res.setHeader('Cache-Control', 'no-store');
-        res.json(data);
+        
+        if (data.success && data.data) {
+            res.json(data);
+        } else {
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch orders',
+                detail: data.error || 'Unknown error'
+            });
+        }
     } catch (error) {
         console.error('Orders error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
 });
-
 
 // ============================================================
 // ORDERS - CREATE
@@ -429,7 +425,6 @@ app.post('/api/v2/orders', async (req, res) => {
         const data = req.body;
         console.log('Create order request:', JSON.stringify(data));
 
-        // Validate required fields
         if (!data.total_price && !data.amount) {
             return res.status(400).json({
                 success: false,
@@ -437,11 +432,9 @@ app.post('/api/v2/orders', async (req, res) => {
             });
         }
 
-        // Format data for saveTransaction
         const formattedData = formatOrderData(data);
         console.log('Formatted data:', JSON.stringify(formattedData));
 
-        // Send to Apps Script
         const response = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -451,7 +444,6 @@ app.post('/api/v2/orders', async (req, res) => {
         const result = await response.json();
         console.log('Apps Script response:', JSON.stringify(result));
 
-        // Create QRIS if requested
         let qrisResult = null;
         if (data.createQris !== false) {
             try {
@@ -491,9 +483,8 @@ app.post('/api/v2/orders', async (req, res) => {
     }
 });
 
-
 // ============================================================
-// ORDERS - SYNC (Add transaction_id to existing orders)
+// ORDERS - SYNC
 // ============================================================
 
 app.post('/api/v2/orders/sync/:orderId', async (req, res) => {
@@ -501,7 +492,6 @@ app.post('/api/v2/orders/sync/:orderId', async (req, res) => {
         const orderId = req.params.orderId;
         console.log('Syncing order:', orderId);
 
-        // Get order data
         const getResponse = await fetch(`${APPS_SCRIPT_URL}?action=getOrderById&id=${orderId}`);
         const orderResult = await getResponse.json();
 
@@ -514,7 +504,6 @@ app.post('/api/v2/orders/sync/:orderId', async (req, res) => {
 
         const order = orderResult.data;
 
-        // Check if already has transaction_id
         if (order.transaction_id) {
             return res.json({
                 success: true,
@@ -523,10 +512,8 @@ app.post('/api/v2/orders/sync/:orderId', async (req, res) => {
             });
         }
 
-        // Generate new transaction_id
         const transactionId = generateTransactionId();
 
-        // Update order
         const updateResponse = await fetch(`${APPS_SCRIPT_URL}?action=updateOrder`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -541,7 +528,6 @@ app.post('/api/v2/orders/sync/:orderId', async (req, res) => {
 
         const updateResult = await updateResponse.json();
 
-        // Also create QRIS for this order
         let qrisResult = null;
         try {
             qrisResult = await callBuatQris({
@@ -579,7 +565,6 @@ app.post('/api/v2/orders/sync/:orderId', async (req, res) => {
     }
 });
 
-
 // ============================================================
 // PAYMENT ENDPOINTS
 // ============================================================
@@ -599,7 +584,8 @@ app.post('/api/v2/payment/create', async (req, res) => {
             orderId
         } = req.body;
 
-        const amountToBuatQris = subtotal ? (subtotal + (feeAdmin || 0)) : amount;
+        // 🔥 PERBAIKAN: amount = subtotal (tanpa fee admin)
+        const amountToBuatQris = subtotal || amount || 0;
         
         const result = await callBuatQris({
             action: 'api_create_qris',
@@ -609,7 +595,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
             description: description || 'Pembayaran Order ' + orderId,
             qris_method: qrisMethod || 'qris_two',
             fee_by: feeBy || 'user',
-            callback_url: callbackUrl || 'https://depsstore-api.vercel.app/api/webhook/buatqris',  // ✅ BENAR
+            callback_url: callbackUrl || 'https://depsstore-api.vercel.app/api/webhook/buatqris',
             test: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')) ? '1' : '0'
         });
 
@@ -624,7 +610,6 @@ app.post('/api/v2/payment/create', async (req, res) => {
         const qrisData = result.data.data;
         const transactionId = qrisData.transaction_id;
 
-        // Check status
         const statusResult = await callBuatQris({
             action: 'api_check_status',
             account_id: BQ_ACCOUNT_ID,
@@ -646,14 +631,20 @@ app.post('/api/v2/payment/create', async (req, res) => {
             expiredAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
         }
 
+        // 🔥 PERBAIKAN: Service Fee = total_amount - amount
         const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
+        
+        // 🔥 PERBAIKAN: Total Amount = subtotal + feeAdmin + serviceFee
+        const totalAmount = (subtotal || amountToBuatQris) + (feeAdmin || 0) + serviceFee;
 
-        // Save to spreadsheet via Apps Script
         try {
             const formattedData = {
                 transaction_id: transactionId,
                 amount: amountToBuatQris,
-                service_fee: serviceFee,  
+                subtotal: subtotal || amountToBuatQris,
+                fee_admin: feeAdmin || 0,
+                service_fee: serviceFee,
+                total_amount: totalAmount,
                 status: qrisData.status || 'pending',
                 customer_name: customer?.name || 'Customer',
                 customer_email: customer?.email || '',
@@ -674,7 +665,6 @@ app.post('/api/v2/payment/create', async (req, res) => {
             });
         } catch (saveError) {
             console.warn('Failed to save to spreadsheet:', saveError.message);
-            // Not fatal - QRIS already created
         }
 
         res.status(200).json({
@@ -686,8 +676,8 @@ app.post('/api/v2/payment/create', async (req, res) => {
                 qrisImage: qrisData.qris_image || '',
                 paymentUrl: qrisData.payment_url || '',
                 amount: amountToBuatQris,
-                subtotal: subtotal || amountToBuatQris - (feeAdmin || 0),
-                totalAmount: qrisData.total_amount || amountToBuatQris,
+                subtotal: subtotal || amountToBuatQris,
+                totalAmount: totalAmount,
                 serviceFee: serviceFee,
                 feeAdmin: feeAdmin || 0,
                 status: qrisData.status || 'pending',
@@ -726,7 +716,9 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
                 status: statusData.status,
                 amount: statusData.amount,
                 totalAmount: statusData.total_amount,
-                isTest: statusData.is_test
+                serviceFee: (statusData.total_amount || statusData.amount) - statusData.amount,
+                isTest: statusData.is_test,
+                expiredAt: statusData.expired_at || null
             }
         });
 
@@ -758,7 +750,6 @@ app.post('/api/v2/payment/sandbox/complete', async (req, res) => {
     }
 });
 
-
 // ============================================================
 // WEBHOOKS
 // ============================================================
@@ -775,7 +766,6 @@ app.post('/api/webhook/buatqris', async (req, res) => {
             });
         }
 
-        // Format data for saveTransaction
         const formattedData = {
             transaction_id: data.transaction_id,
             amount: data.amount || data.total || 0,
@@ -791,7 +781,6 @@ app.post('/api/webhook/buatqris', async (req, res) => {
             expired_at: data.expired_at || ''
         };
 
-        // Send to Apps Script
         const response = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -900,7 +889,6 @@ app.post('/api/v2/orders/update-status', async (req, res) => {
     }
 });
 
-
 // ============================================================
 // USERS, CUSTOMERS, LOGS, BACKUPS
 // ============================================================
@@ -955,7 +943,6 @@ app.post('/api/v2/backups', async (req, res) => {
     }
 });
 
-
 // ============================================================
 // 404 & ERROR HANDLER
 // ============================================================
@@ -977,7 +964,6 @@ app.use((err, req, res, next) => {
         error: err.message || 'Internal server error'
     });
 });
-
 
 // ============================================================
 // EXPORT
