@@ -89,21 +89,15 @@ async function callBuatQris(params) {
 async function callAppsScript(action, body = null) {
     const targetUrl = `${APPS_SCRIPT_URL}?action=${action}`;
     console.log('📡 Calling Apps Script URL:', targetUrl);
-    console.log('📦 Body:', body ? JSON.stringify(body) : 'NO BODY');
     
     const options = {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
+        method: body ? 'POST' : 'GET',
+        headers: { 'Content-Type': 'application/json' }
     };
     
-    // 🔥 PASTIKAN BODY DIKIRIM
     if (body) {
         options.body = JSON.stringify(body);
-        console.log('📦 Body string:', options.body);
-    } else {
-        console.log('⚠️ No body to send');
+        console.log('📦 Body:', options.body);
     }
     
     try {
@@ -132,13 +126,6 @@ async function callAppsScript(action, body = null) {
  */
 function generateTransactionId() {
     return 'TXN-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
-}
-
-/**
- * Generate order ID
- */
-function generateOrderId() {
-    return 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
 }
 
 /**
@@ -408,8 +395,7 @@ app.get('/api/v2/dashboard', async (req, res) => {
 
 app.get('/api/v2/products', async (req, res) => {
     try {
-        // const queryString = new URLSearchParams(req.query).toString();
-        const data = await callAppsScript('getProducts' + (queryString ? '&' + queryString : ''));
+        const data = await callAppsScript('getProducts');
         res.json(data);
     } catch (error) {
         console.error('Products error:', error);
