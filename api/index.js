@@ -653,6 +653,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
             const formattedData = {
                 transaction_id: transactionId,
                 amount: amountToBuatQris,
+                service_fee: serviceFee,  
                 status: qrisData.status || 'pending',
                 customer_name: customer?.name || 'Customer',
                 customer_email: customer?.email || '',
