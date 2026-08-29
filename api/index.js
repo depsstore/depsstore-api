@@ -494,6 +494,10 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
 // WEBHOOK - BUATQRIS
 // ============================================================
 
+// ============================================================
+// WEBHOOK - BUATQRIS
+// ============================================================
+
 app.post('/api/webhook/buatqris', async (req, res) => {
     try {
         const data = req.body;
@@ -506,33 +510,114 @@ app.post('/api/webhook/buatqris', async (req, res) => {
             });
         }
 
-        // 🔥 UPDATE STATUS DI SPREADSHEET VIA APPS SCRIPT
-        try {
-            await fetch(`${APPS_SCRIPT_URL}?action=updateOrderStatus`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    transaction_id: data.transaction_id,
-                    status: data.status || 'success',
-                    updated_at: new Date().toISOString()
-                })
+        // 🔥 PANGGIL APPS SCRIPT DENGAN POST
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
+        if (!APPS_SCRIPT_URL) {
+            console.error('❌ APPS_SCRIPT_URL not configured!');
+            return res.status(500).json({
+                success: false,
+                error: 'APPS_SCRIPT_URL not configured'
             });
-            console.log('✅ Status updated in spreadsheet');
-        } catch (updateError) {
-            console.warn('⚠️ Failed to update status:', updateError.message);
         }
+
+        // 🔥 FORMAT DATA UNTUK APPS SCRIPT
+        const payload = {
+            transaction_id: data.transaction_id,
+            amount: data.amount || data.total || 0,
+            status: data.status || 'success',
+            customer_name: data.customer_name || data.customer || 'Webhook Customer',
+            customer_email: data.customer_email || data.email || '',
+            customer_phone: data.customer_phone || data.phone || '',
+            payment_method: 'qris',
+            qr_url: data.qr_url || '',
+            payment_url: data.payment_url || '',
+            is_test: data.is_test || false,
+            created_at: data.created_at || new Date().toISOString(),
+            expired_at: data.expired_at || ''
+        };
+
+        console.log('📤 Sending to Apps Script:', JSON.stringify(payload));
+
+        // 🔥 PANGGIL APPS SCRIPT
+        const response = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        console.log('📥 Apps Script response:', result);
 
         res.json({
             success: true,
             message: 'Webhook processed',
             data: {
                 transaction_id: data.transaction_id,
-                status: data.status || 'success'
+                saved: result.success || false
             }
         });
 
     } catch (error) {
         console.error('❌ Webhook error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============================================================
+// TEST WEBHOOK - UNTUK DEBUGGING
+// ============================================================
+
+app.post('/api/webhook/test', async (req, res) => {
+    try {
+        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
+        if (!APPS_SCRIPT_URL) {
+            return res.status(500).json({
+                success: false,
+                error: 'APPS_SCRIPT_URL not configured'
+            });
+        }
+
+        // 🔥 TEST DATA
+        const testData = {
+            transaction_id: 'TXN-TEST-' + Date.now(),
+            amount: 10000,
+            status: 'pending',
+            customer_name: 'Test Customer',
+            customer_email: 'test@example.com',
+            customer_phone: '08123456789',
+            payment_method: 'qris',
+            qr_url: 'https://example.com/qr.png',
+            is_test: true,
+            created_at: new Date().toISOString()
+        };
+
+        console.log('📤 Sending test data:', JSON.stringify(testData));
+
+        const response = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(testData)
+        });
+
+        const result = await response.json();
+        console.log('📥 Apps Script response:', result);
+
+        res.json({
+            success: true,
+            message: 'Test webhook sent',
+            sentData: testData,
+            appsScriptResponse: result
+        });
+
+    } catch (error) {
+        console.error('❌ Test webhook error:', error);
         res.status(500).json({
             success: false,
             error: error.message
