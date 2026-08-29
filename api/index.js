@@ -22,7 +22,7 @@ app.use(express.json());
 const BQ_ACCOUNT_ID = process.env.BUATQRIS_ACCOUNT_ID;
 const BQ_SECRET_TOKEN = process.env.BUATQRIS_SECRET_TOKEN;
 const BQ_MODE = process.env.BUATQRIS_MODE || 'sandbox';
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyi-CMq3E2f1-99UA8kRoD7YobdoflwJEE-ZjksAKnhcZ62x0q21TjiDytxfFUvr0mC/exec';
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwu68QkBY0M9X6kuIATK-0mMchQA7Ng58Nh4AJOhTNs9--xooBcqzygJVfjqHoxTTfC/exec';
 
 console.log('🚀 DepsStore API v2.9.5');
 console.log(`📊 BuatQris Mode: ${BQ_MODE}`);
