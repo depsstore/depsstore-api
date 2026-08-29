@@ -408,7 +408,7 @@ app.get('/api/v2/dashboard', async (req, res) => {
 
 app.get('/api/v2/products', async (req, res) => {
     try {
-        const queryString = new URLSearchParams(req.query).toString();
+        // const queryString = new URLSearchParams(req.query).toString();
         const data = await callAppsScript('getProducts' + (queryString ? '&' + queryString : ''));
         res.json(data);
     } catch (error) {
