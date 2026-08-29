@@ -1,6 +1,6 @@
 // api/index.js - Vercel Serverless Function
 // DepsStore API v2 - Complete Backend Integration
-// Version: 2.9.2 - FIXED ALL ENDPOINTS
+// Version: 2.9.4 - NO DUMMY DATA
 
 const express = require('express');
 const cors = require('cors');
@@ -27,20 +27,6 @@ const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.co
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
-
-/**
- * Safe JSON response - selalu return success:true
- */
-function safeJsonResponse(data, defaultData = null) {
-    if (data && data.success) {
-        return data;
-    }
-    return {
-        success: true,
-        data: defaultData || [],
-        message: 'Data temporarily unavailable'
-    };
-}
 
 /**
  * Call BuatQris API
@@ -77,7 +63,7 @@ async function callBuatQris(params) {
     try {
         const response = await fetch(url, options);
         const data = await response.json();
-        console.log('BuatQris response:', data);
+        console.log('BuatQris response:', JSON.stringify(data).substring(0, 500));
 
         if (!data.success || !data.data) {
             return {
@@ -116,21 +102,20 @@ async function callAppsScript(action, body = null) {
     const options = {
         method: body ? 'POST' : 'GET',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(15000) // 15 detik timeout
+        signal: AbortSignal.timeout(15000)
     };
     
     if (body) {
         options.body = JSON.stringify(body);
-        console.log('📦 Body:', options.body);
+        console.log('📦 Body:', JSON.stringify(body).substring(0, 500));
     }
     
     try {
         const response = await fetch(targetUrl, options);
         const text = await response.text();
-        console.log('📥 Raw response length:', text.length);
-        console.log('📥 Raw response preview:', text.substring(0, 300));
+        console.log('📥 Response status:', response.status);
+        console.log('📥 Response preview:', text.substring(0, 300));
         
-        // Cek apakah response adalah HTML
         if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
             console.error('❌ Apps Script returned HTML instead of JSON');
             return { 
@@ -160,7 +145,12 @@ async function callAppsScript(action, body = null) {
  * Generate transaction ID
  */
 function generateTransactionId() {
-    return 'TXN-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 4; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result + '-' + Date.now().toString(36).toUpperCase();
 }
 
 /**
@@ -168,40 +158,6 @@ function generateTransactionId() {
  */
 function generateOrderId() {
     return 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4).toUpperCase();
-}
-
-/**
- * Format order data for saveTransaction
- */
-function formatOrderData(data) {
-    const transactionId = data.transaction_id || generateTransactionId();
-    const orderId = data.order_id || data.order_number || generateOrderId();
-
-    return {
-        transaction_id: transactionId,
-        order_id: orderId,
-        order_number: data.order_number || orderId,
-        amount: parseFloat(data.total_price || data.amount || 0),
-        subtotal: parseFloat(data.subtotal || data.total_price || 0),
-        total_price: parseFloat(data.total_price || data.amount || 0),
-        status: data.status || 'pending',
-        payment_status: data.payment_status || data.status || 'pending',
-        customer_name: data.customer_name || data.customer?.name || 'Customer',
-        customer_email: data.customer_email || data.customer?.email || '',
-        customer_phone: data.customer_phone || data.customer?.phone || '',
-        payment_method: data.payment_method || 'qris',
-        qr_url: data.qr_url || '',
-        payment_url: data.payment_url || '',
-        is_test: data.is_test || false,
-        notes: data.notes || data.description || '',
-        product_id: data.product_id || '',
-        quantity: data.quantity || 1,
-        created_at: data.created_at || new Date().toISOString(),
-        expired_at: data.expired_at || '',
-        customer: data.customer || {},
-        fee_admin: data.fee_admin || 0,
-        service_fee: data.service_fee || 0
-    };
 }
 
 // ============================================================
@@ -212,24 +168,7 @@ app.get('/', (req, res) => {
     res.json({
         success: true,
         message: 'DepsStore API v2',
-        version: '2.9.2',
-        endpoints: {
-            health: '/api/v2/system/health',
-            products: '/api/v2/products',
-            orders: '/api/v2/orders',
-            ordersCreate: '/api/v2/orders (POST)',
-            ordersSync: '/api/v2/orders/sync/:orderId (POST)',
-            login: '/api/v2/auth/login',
-            register: '/api/v2/auth/register',
-            support: '/api/v2/support',
-            stats: '/api/v2/stats',
-            dashboard: '/api/v2/dashboard',
-            payment: {
-                create: '/api/v2/payment/create (POST)',
-                status: '/api/v2/payment/status/:id (GET)'
-            },
-            webhook: '/api/webhook/buatqris (POST)'
-        },
+        version: '2.9.4',
         timestamp: new Date().toISOString()
     });
 });
@@ -238,7 +177,7 @@ app.get('/api/v2', (req, res) => {
     res.json({
         success: true,
         message: 'DepsStore API v2',
-        version: '2.9.2',
+        version: '2.9.4',
         timestamp: new Date().toISOString()
     });
 });
@@ -249,7 +188,7 @@ app.get('/api/v2/system/health', (req, res) => {
         data: {
             status: 'healthy',
             timestamp: new Date().toISOString(),
-            version: '2.9.2',
+            version: '2.9.4',
             environment: process.env.NODE_ENV || 'development'
         }
     });
@@ -264,7 +203,7 @@ app.get('/api/v2/test', (req, res) => {
 });
 
 // ============================================================
-// SYSTEM INFO
+// SYSTEM INFO - DARI APPS SCRIPT (TANPA DUMMY)
 // ============================================================
 
 app.get('/api/v2/system/info', async (req, res) => {
@@ -274,39 +213,23 @@ app.get('/api/v2/system/info', async (req, res) => {
         if (data && data.success && data.data) {
             res.json(data);
         } else {
-            res.json({
-                success: true,
-                data: {
-                    googleSheetsStatus: 'Terhubung',
-                    spreadsheet_id: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-                    total_sheets: 10,
-                    systemHealth: 'healthy',
-                    version: '2.9.2',
-                    environment: process.env.NODE_ENV || 'development',
-                    gatewayQRIS: 'Aktif',
-                    webhook: 'Aktif',
-                    callback: 'Aktif',
-                    products: 'Aktif',
-                    serverStatus: 'Online',
-                    uptime: '99.9%',
-                    responseTime: '120ms'
-                }
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch system info',
+                detail: data.error || 'Apps Script returned invalid response'
             });
         }
     } catch (error) {
         console.error('System info error:', error);
-        res.json({
-            success: true,
-            data: {
-                status: 'unknown',
-                message: 'Failed to fetch system info'
-            }
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
 
 // ============================================================
-// AUTH ENDPOINTS
+// AUTH ENDPOINTS - DARI APPS SCRIPT
 // ============================================================
 
 app.post('/api/v2/auth/login', async (req, res) => {
@@ -348,7 +271,7 @@ app.post('/api/v2/auth/register', async (req, res) => {
 });
 
 // ============================================================
-// SUPPORT ENDPOINTS
+// SUPPORT ENDPOINTS - DARI APPS SCRIPT
 // ============================================================
 
 app.post('/api/v2/support', async (req, res) => {
@@ -362,7 +285,7 @@ app.post('/api/v2/support', async (req, res) => {
 });
 
 // ============================================================
-// STATS & DASHBOARD
+// STATS & DASHBOARD - DARI APPS SCRIPT (TANPA DUMMY)
 // ============================================================
 
 app.get('/api/v2/stats', async (req, res) => {
@@ -374,28 +297,17 @@ app.get('/api/v2/stats', async (req, res) => {
         if (data && data.success && data.data) {
             res.json(data);
         } else {
-            res.json({
-                success: true,
-                data: {
-                    products: 0,
-                    customers: 0,
-                    users: 0,
-                    orders: 0,
-                    timestamp: new Date().toISOString()
-                }
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch stats',
+                detail: data.error || 'Apps Script returned invalid response'
             });
         }
     } catch (error) {
         console.error('Stats error:', error);
-        res.json({
-            success: true,
-            data: {
-                products: 0,
-                customers: 0,
-                users: 0,
-                orders: 0,
-                timestamp: new Date().toISOString()
-            }
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -410,61 +322,51 @@ app.get('/api/v2/dashboard', async (req, res) => {
                 data: data.data
             });
         } else {
-            res.json({
-                success: true,
-                data: {
-                    products: 0,
-                    customers: 0,
-                    users: 0,
-                    orders: 0,
-                    timestamp: new Date().toISOString()
-                }
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch dashboard data',
+                detail: data.error || 'Apps Script returned invalid response'
             });
         }
     } catch (error) {
         console.error('Dashboard error:', error);
-        res.json({
-            success: true,
-            data: {
-                products: 0,
-                customers: 0,
-                users: 0,
-                orders: 0,
-                timestamp: new Date().toISOString()
-            }
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
 
 // ============================================================
-// PRODUCTS
+// PRODUCTS - DARI APPS SCRIPT (TANPA DUMMY)
 // ============================================================
 
 app.get('/api/v2/products', async (req, res) => {
     try {
+        console.log('📦 Fetching products from Apps Script...');
         const data = await callAppsScript('getProducts');
+        console.log('📦 Products data:', JSON.stringify(data).substring(0, 500));
         
-        if (data && data.success && data.data) {
+        if (data && data.success && data.data && Array.isArray(data.data)) {
             res.json(data);
         } else {
-            res.json({
-                success: true,
-                data: [],
-                message: 'No products available'
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch products',
+                detail: data.error || 'Apps Script returned invalid response'
             });
         }
     } catch (error) {
         console.error('Products error:', error);
-        res.json({
-            success: true,
-            data: [],
-            message: 'Failed to fetch products'
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
 
 // ============================================================
-// ORDERS - GET
+// ORDERS - GET - DARI APPS SCRIPT (TANPA DUMMY)
 // ============================================================
 
 app.get('/api/v2/orders', async (req, res) => {
@@ -473,23 +375,21 @@ app.get('/api/v2/orders', async (req, res) => {
         const data = await callAppsScript('getOrders');
         res.setHeader('Cache-Control', 'no-store');
         
-        // 🔥 SELALU KEMBALIKAN success:true dengan items:[] jika gagal
         if (data && data.success && data.items && Array.isArray(data.items)) {
+            console.log(`✅ Orders fetched: ${data.items.length} items`);
             res.json(data);
         } else {
-            console.error('❌ Invalid orders response:', data);
-            res.json({
-                success: true,
-                items: [],
-                message: 'No orders available'
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch orders',
+                detail: data.error || 'Apps Script returned invalid response'
             });
         }
     } catch (error) {
         console.error('❌ Orders error:', error);
-        res.json({
-            success: true,
-            items: [],
-            message: 'Failed to fetch orders'
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -510,7 +410,32 @@ app.post('/api/v2/orders', async (req, res) => {
             });
         }
 
-        const formattedData = formatOrderData(data);
+        const formattedData = {
+            transaction_id: data.transaction_id || generateTransactionId(),
+            order_id: data.order_id || generateOrderId(),
+            order_number: data.order_number || data.order_id || generateOrderId(),
+            amount: parseFloat(data.total_price || data.amount || 0),
+            subtotal: parseFloat(data.subtotal || data.total_price || 0),
+            total_price: parseFloat(data.total_price || data.amount || 0),
+            status: data.status || 'pending',
+            payment_status: data.payment_status || data.status || 'pending',
+            customer_name: data.customer_name || data.customer?.name || 'Customer',
+            customer_email: data.customer_email || data.customer?.email || '',
+            customer_phone: data.customer_phone || data.customer?.phone || '',
+            payment_method: data.payment_method || 'qris',
+            qr_url: data.qr_url || '',
+            payment_url: data.payment_url || '',
+            is_test: data.is_test || false,
+            notes: data.notes || data.description || '',
+            product_id: data.product_id || '',
+            quantity: data.quantity || 1,
+            created_at: data.created_at || new Date().toISOString(),
+            expired_at: data.expired_at || '',
+            customer: data.customer || {},
+            fee_admin: data.fee_admin || 0,
+            service_fee: data.service_fee || 0
+        };
+
         console.log('Formatted data:', JSON.stringify(formattedData));
 
         const response = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
@@ -521,6 +446,14 @@ app.post('/api/v2/orders', async (req, res) => {
 
         const result = await response.json();
         console.log('Apps Script response:', JSON.stringify(result));
+
+        if (!result.success) {
+            return res.status(500).json({
+                success: false,
+                error: result.error || 'Failed to save order',
+                detail: result
+            });
+        }
 
         let qrisResult = null;
         if (data.createQris !== false) {
@@ -562,88 +495,6 @@ app.post('/api/v2/orders', async (req, res) => {
 });
 
 // ============================================================
-// ORDERS - SYNC
-// ============================================================
-
-app.post('/api/v2/orders/sync/:orderId', async (req, res) => {
-    try {
-        const orderId = req.params.orderId;
-        console.log('Syncing order:', orderId);
-
-        const getResponse = await fetch(`${APPS_SCRIPT_URL}?action=getOrderById&id=${orderId}`);
-        const orderResult = await getResponse.json();
-
-        if (!orderResult.success || !orderResult.data) {
-            return res.status(404).json({
-                success: false,
-                error: 'Order not found'
-            });
-        }
-
-        const order = orderResult.data;
-
-        if (order.transaction_id) {
-            return res.json({
-                success: true,
-                message: 'Order already has transaction_id',
-                transactionId: order.transaction_id
-            });
-        }
-
-        const transactionId = generateTransactionId();
-
-        const updateResponse = await fetch(`${APPS_SCRIPT_URL}?action=updateOrder`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                id: orderId,
-                data: {
-                    transaction_id: transactionId,
-                    updated_at: new Date().toISOString()
-                }
-            })
-        });
-
-        const updateResult = await updateResponse.json();
-
-        let qrisResult = null;
-        try {
-            qrisResult = await callBuatQris({
-                action: 'api_create_qris',
-                account_id: BQ_ACCOUNT_ID,
-                secret_token: BQ_SECRET_TOKEN,
-                amount: String(order.total_price || 0),
-                description: 'Order ' + orderId,
-                qris_method: 'qris_two',
-                fee_by: 'user',
-                test: '0'
-            });
-            console.log('QRIS created for sync:', JSON.stringify(qrisResult));
-        } catch (qrisError) {
-            console.warn('QRIS creation failed for sync:', qrisError.message);
-        }
-
-        res.json({
-            success: true,
-            message: 'Order synced successfully',
-            data: {
-                orderId: orderId,
-                transactionId: transactionId,
-                qris: qrisResult?.data?.data || null,
-                updateResult: updateResult
-            }
-        });
-
-    } catch (error) {
-        console.error('Sync error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// ============================================================
 // PAYMENT ENDPOINTS
 // ============================================================
 
@@ -662,8 +513,8 @@ app.post('/api/v2/payment/create', async (req, res) => {
             orderId
         } = req.body;
 
-        // 🔥 amount = subtotal (tanpa fee admin)
         const amountToBuatQris = subtotal || amount || 0;
+        const feeAdminValue = feeAdmin || 0;
         
         const result = await callBuatQris({
             action: 'api_create_qris',
@@ -680,7 +531,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
         if (!result.data.success || !result.data.data) {
             return res.status(result.status || 400).json({
                 success: false,
-                error: result.data.error || result.data.message || 'BuatQris API error',
+                error: result.data.error || 'BuatQris API error',
                 detail: result.data.raw || null
             });
         }
@@ -704,23 +555,17 @@ app.post('/api/v2/payment/create', async (req, res) => {
         }
 
         const statusData = statusResult.data.data;
-        let expiredAt = statusData.expired_at || null;
-        if (!expiredAt) {
-            expiredAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-        }
-
-        // 🔥 Service Fee = total_amount - amount
+        const expiredAt = statusData.expired_at || new Date(Date.now() + 15 * 60 * 1000).toISOString();
         const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
-        
-        // 🔥 Total Amount = subtotal + feeAdmin + serviceFee
-        const totalAmount = (subtotal || amountToBuatQris) + (feeAdmin || 0) + serviceFee;
+        const totalAmount = amountToBuatQris + feeAdminValue + serviceFee;
 
+        // Simpan ke spreadsheet via Apps Script
         try {
             const formattedData = {
                 transaction_id: transactionId,
                 amount: amountToBuatQris,
-                subtotal: subtotal || amountToBuatQris,
-                fee_admin: feeAdmin || 0,
+                subtotal: amountToBuatQris,
+                fee_admin: feeAdminValue,
                 service_fee: serviceFee,
                 total_amount: totalAmount,
                 status: qrisData.status || 'pending',
@@ -741,11 +586,12 @@ app.post('/api/v2/payment/create', async (req, res) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formattedData)
             });
+            console.log('✅ Transaction saved to spreadsheet');
         } catch (saveError) {
-            console.warn('Failed to save to spreadsheet:', saveError.message);
+            console.warn('⚠️ Failed to save to spreadsheet:', saveError.message);
         }
 
-        res.status(200).json({
+        res.json({
             success: true,
             data: {
                 transactionId: transactionId,
@@ -754,10 +600,10 @@ app.post('/api/v2/payment/create', async (req, res) => {
                 qrisImage: qrisData.qris_image || '',
                 paymentUrl: qrisData.payment_url || '',
                 amount: amountToBuatQris,
-                subtotal: subtotal || amountToBuatQris,
+                subtotal: amountToBuatQris,
                 totalAmount: totalAmount,
                 serviceFee: serviceFee,
-                feeAdmin: feeAdmin || 0,
+                feeAdmin: feeAdminValue,
                 status: qrisData.status || 'pending',
                 isTest: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')),
                 customer: customer,
@@ -795,7 +641,7 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
                 amount: statusData.amount,
                 totalAmount: statusData.total_amount,
                 serviceFee: (statusData.total_amount || statusData.amount) - statusData.amount,
-                isTest: statusData.is_test,
+                isTest: statusData.is_test || false,
                 expiredAt: statusData.expired_at || null
             }
         });
@@ -806,36 +652,14 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
     }
 });
 
-app.post('/api/v2/payment/sandbox/complete', async (req, res) => {
-    try {
-        const { transactionId } = req.body;
-
-        if (!transactionId) {
-            return res.status(400).json({ success: false, error: 'Transaction ID is required' });
-        }
-
-        res.json({
-            success: true,
-            message: 'Sandbox transaction completed',
-            data: {
-                transactionId: transactionId,
-                status: 'success'
-            }
-        });
-    } catch (error) {
-        console.error('Sandbox complete error:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
 // ============================================================
-// WEBHOOKS
+// WEBHOOK
 // ============================================================
 
 app.post('/api/webhook/buatqris', async (req, res) => {
     try {
         const data = req.body;
-        console.log('Webhook received:', data);
+        console.log('Webhook received:', JSON.stringify(data));
 
         if (!data.transaction_id) {
             return res.status(400).json({
@@ -844,240 +668,36 @@ app.post('/api/webhook/buatqris', async (req, res) => {
             });
         }
 
-        const formattedData = {
-            transaction_id: data.transaction_id,
-            amount: data.amount || data.total || 0,
-            status: data.status || 'pending',
-            customer_name: data.customer_name || data.customer || 'Webhook Customer',
-            customer_email: data.customer_email || data.email || '',
-            customer_phone: data.customer_phone || data.phone || '',
-            payment_method: data.payment_method || 'qris',
-            qr_url: data.qr_url || '',
-            payment_url: data.payment_url || '',
-            is_test: data.is_test || false,
-            created_at: data.created_at || new Date().toISOString(),
-            expired_at: data.expired_at || ''
-        };
-
-        const response = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formattedData)
-        });
-
-        const result = await response.json();
-        console.log('Apps Script response:', result);
+        // Update status di spreadsheet
+        try {
+            const response = await fetch(`${APPS_SCRIPT_URL}?action=updateOrderStatus`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    transaction_id: data.transaction_id,
+                    status: data.status || 'success',
+                    updated_at: new Date().toISOString()
+                })
+            });
+            const result = await response.json();
+            console.log('Status update result:', result);
+        } catch (updateError) {
+            console.warn('Failed to update status:', updateError.message);
+            // Tidak fatal
+        }
 
         res.json({
             success: true,
             message: 'Webhook processed',
             data: {
                 transaction_id: data.transaction_id,
-                saved: result.success || false
+                status: data.status || 'success'
             }
         });
 
     } catch (error) {
         console.error('Webhook error:', error);
         res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-app.post('/api/webhook/test', async (req, res) => {
-    try {
-        const testData = {
-            transaction_id: 'TXN-TEST-' + Date.now(),
-            amount: 10000,
-            status: 'pending',
-            customer_name: 'Test Customer',
-            customer_email: 'test@example.com',
-            customer_phone: '08123456789',
-            payment_method: 'qris',
-            qr_url: 'https://example.com/qr.png',
-            is_test: true,
-            created_at: new Date().toISOString()
-        };
-
-        const response = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(testData)
-        });
-
-        const result = await response.json();
-
-        res.json({
-            success: true,
-            message: 'Test webhook sent',
-            sentData: testData,
-            appsScriptResponse: result
-        });
-
-    } catch (error) {
-        console.error('Test webhook error:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ============================================================
-// UPDATE ORDER STATUS - MANUAL
-// ============================================================
-
-app.post('/api/v2/orders/update-status', async (req, res) => {
-    try {
-        const { transaction_id, status } = req.body;
-
-        if (!transaction_id || !status) {
-            return res.status(400).json({
-                success: false,
-                error: 'transaction_id and status are required'
-            });
-        }
-
-        console.log('🔄 Updating status:', transaction_id, '→', status);
-
-        const response = await fetch(`${APPS_SCRIPT_URL}?action=updateOrderStatus`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                transaction_id: transaction_id,
-                status: status,
-                updated_at: new Date().toISOString()
-            })
-        });
-
-        const result = await response.json();
-        console.log('✅ Status update result:', result);
-
-        res.json({
-            success: true,
-            message: 'Status updated',
-            result: result
-        });
-
-    } catch (error) {
-        console.error('❌ Update status error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// ============================================================
-// USERS, CUSTOMERS, LOGS, BACKUPS
-// ============================================================
-
-app.get('/api/v2/users', async (req, res) => {
-    try {
-        const data = await callAppsScript('getUsers');
-        
-        if (data && data.success && data.data) {
-            res.json(data);
-        } else {
-            res.json({
-                success: true,
-                data: [],
-                message: 'No users available'
-            });
-        }
-    } catch (error) {
-        console.error('Users error:', error);
-        res.json({
-            success: true,
-            data: [],
-            message: 'Failed to fetch users'
-        });
-    }
-});
-
-app.get('/api/v2/customers', async (req, res) => {
-    try {
-        const data = await callAppsScript('getCustomers');
-        
-        if (data && data.success && data.data) {
-            res.json(data);
-        } else {
-            res.json({
-                success: true,
-                data: [],
-                message: 'No customers available'
-            });
-        }
-    } catch (error) {
-        console.error('Customers error:', error);
-        res.json({
-            success: true,
-            data: [],
-            message: 'Failed to fetch customers'
-        });
-    }
-});
-
-app.get('/api/v2/logs', async (req, res) => {
-    try {
-        const data = await callAppsScript('getLogs');
-        
-        if (data && data.success && data.data) {
-            res.json(data);
-        } else {
-            res.json({
-                success: true,
-                data: [],
-                message: 'No logs available'
-            });
-        }
-    } catch (error) {
-        console.error('Logs error:', error);
-        res.json({
-            success: true,
-            data: [],
-            message: 'Failed to fetch logs'
-        });
-    }
-});
-
-app.get('/api/v2/backups', async (req, res) => {
-    try {
-        const data = await callAppsScript('getBackups');
-        
-        if (data && data.success && data.data) {
-            res.json(data);
-        } else {
-            res.json({
-                success: true,
-                data: [],
-                message: 'No backups available'
-            });
-        }
-    } catch (error) {
-        console.error('Backups error:', error);
-        res.json({
-            success: true,
-            data: [],
-            message: 'Failed to fetch backups'
-        });
-    }
-});
-
-app.post('/api/v2/backups', async (req, res) => {
-    try {
-        const data = await callAppsScript('createBackup', req.body || {});
-        
-        if (data && data.success) {
-            res.json(data);
-        } else {
-            res.json({
-                success: true,
-                message: 'Backup created successfully'
-            });
-        }
-    } catch (error) {
-        console.error('Backup error:', error);
-        res.json({
             success: false,
             error: error.message
         });
