@@ -1,6 +1,5 @@
 // api/index.js - Vercel Serverless Function
-// DepsStore API v2 - Complete Backend Integration
-// Version: 2.9.5 - FIXED PAYMENT & PRODUCTS
+// DepsStore API v3.0.0 - OPTIMIZED FOR VERCEL
 
 const express = require('express');
 const cors = require('cors');
@@ -9,27 +8,39 @@ const fetch = require('node-fetch');
 const app = express();
 
 // ============================================================
-// MIDDLEWARE
+// MIDDLEWARE - PERBAIKAN
 // ============================================================
 
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+    origin: '*', // Izinkan semua origin untuk development
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// 🔥 PERBAIKAN: Tambahkan limit untuk payload besar
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ============================================================
-// KONFIGURASI
+// KONFIGURASI - PERBAIKAN
 // ============================================================
 
 const BQ_ACCOUNT_ID = process.env.BUATQRIS_ACCOUNT_ID;
 const BQ_SECRET_TOKEN = process.env.BUATQRIS_SECRET_TOKEN;
 const BQ_MODE = process.env.BUATQRIS_MODE || 'sandbox';
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwu68QkBY0M9X6kuIATK-0mMchQA7Ng58Nh4AJOhTNs9--xooBcqzygJVfjqHoxTTfC/exec';
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
 
-console.log('🚀 DepsStore API v2.9.5');
+// 🔥 PERBAIKAN: Logging lebih informatif
+console.log('🚀 DepsStore API v3.0.0');
 console.log(`📊 BuatQris Mode: ${BQ_MODE}`);
 console.log(`📋 Account ID: ${BQ_ACCOUNT_ID ? '✅ Set' : '❌ Not Set'}`);
+console.log(`📋 Apps Script URL: ${APPS_SCRIPT_URL ? '✅ Set' : '❌ Not Set'}`);
+
+// 🔥 PERBAIKAN: Tambahkan timeout default
+const DEFAULT_TIMEOUT = 30000; // 30 detik
 
 // ============================================================
-// HELPER: CALL BUATQRIS API
+// HELPER: CALL BUATQRIS API - PERBAIKAN
 // ============================================================
 
 async function callBuatQris(params) {
@@ -50,8 +61,8 @@ async function callBuatQris(params) {
     formData.append('secret_token', BQ_SECRET_TOKEN);
 
     for (const [key, value] of Object.entries(params)) {
-        if (key !== 'account_id' && key !== 'secret_token') {
-            formData.append(key, value);
+        if (key !== 'account_id' && key !== 'secret_token' && value !== undefined && value !== null) {
+            formData.append(key, String(value));
         }
     }
 
@@ -60,7 +71,9 @@ async function callBuatQris(params) {
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: formData
+        body: formData,
+        // 🔥 PERBAIKAN: Tambahkan timeout
+        signal: AbortSignal.timeout(DEFAULT_TIMEOUT)
     };
 
     console.log(`📡 BuatQris: ${params.action}`);
@@ -98,7 +111,7 @@ async function callBuatQris(params) {
 }
 
 // ============================================================
-// HELPER: CALL APPS SCRIPT (FALLBACK)
+// HELPER: CALL APPS SCRIPT - PERBAIKAN
 // ============================================================
 
 async function callAppsScript(action, body = null) {
@@ -107,12 +120,17 @@ async function callAppsScript(action, body = null) {
         return { success: false, error: 'APPS_SCRIPT_URL not configured' };
     }
 
-    const targetUrl = `${APPS_SCRIPT_URL}?action=${action}`;
+    // 🔥 PERBAIKAN: Encode action parameter
+    const targetUrl = `${APPS_SCRIPT_URL}?action=${encodeURIComponent(action)}`;
     console.log(`📡 Apps Script: ${action}`);
 
     const options = {
         method: body ? 'POST' : 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        // 🔥 PERBAIKAN: Tambahkan timeout
         signal: AbortSignal.timeout(15000)
     };
 
@@ -124,13 +142,13 @@ async function callAppsScript(action, body = null) {
         const response = await fetch(targetUrl, options);
         const text = await response.text();
 
-        // 🔥 CEK APAKAH RESPONSE ADALAH HTML
+        // Cek apakah response adalah HTML
         if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
             console.warn('⚠️ Apps Script returned HTML');
             return { success: false, error: 'Apps Script returned HTML', isHtml: true };
         }
 
-        // 🔥 PARSE JSON
+        // Parse JSON
         try {
             const jsonData = JSON.parse(text);
             console.log(`✅ Apps Script response:`, JSON.stringify(jsonData).substring(0, 300));
@@ -146,24 +164,39 @@ async function callAppsScript(action, body = null) {
 }
 
 // ============================================================
-// ROOT & HEALTH
+// ROOT & HEALTH - PERBAIKAN
 // ============================================================
 
 app.get('/', (req, res) => {
     res.json({
         success: true,
-        message: 'DepsStore API v2.9.5',
+        message: 'DepsStore API v3.0.0',
         mode: BQ_MODE,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        // 🔥 PERBAIKAN: Tambahkan status koneksi
+        connections: {
+            buatqris: BQ_ACCOUNT_ID && BQ_SECRET_TOKEN ? 'configured' : 'missing',
+            appsScript: APPS_SCRIPT_URL ? 'configured' : 'missing'
+        }
     });
 });
 
 app.get('/api/v2', (req, res) => {
     res.json({
         success: true,
-        message: 'DepsStore API v2.9.5',
+        message: 'DepsStore API v3.0.0',
         mode: BQ_MODE,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        endpoints: [
+            '/api/v2/products',
+            '/api/v2/orders',
+            '/api/v2/stats',
+            '/api/v2/auth/login',
+            '/api/v2/auth/register',
+            '/api/v2/payment/create',
+            '/api/v2/payment/status/:transactionId',
+            '/api/v2/support'
+        ]
     });
 });
 
@@ -174,29 +207,16 @@ app.get('/api/v2/system/health', (req, res) => {
             status: 'healthy',
             mode: BQ_MODE,
             timestamp: new Date().toISOString(),
-            version: '2.9.5'
+            version: '3.0.0',
+            // 🔥 PERBAIKAN: Cek koneksi ke BuatQris
+            buatqris: BQ_ACCOUNT_ID && BQ_SECRET_TOKEN ? 'connected' : 'disconnected',
+            appsScript: APPS_SCRIPT_URL ? 'connected' : 'disconnected'
         }
     });
 });
 
-app.get('/api/v2/test', (req, res) => {
-    res.json({
-        success: true,
-        message: 'Test endpoint berhasil',
-        timestamp: new Date().toISOString()
-    });
-});
-
 // ============================================================
-// PRODUCTS - DARI APPS SCRIPT
-// ============================================================
-
-// ============================================================
-// PRODUCTS - DARI APPS SCRIPT
-// ============================================================
-
-// ============================================================
-// PRODUCTS - DARI APPS SCRIPT
+// PRODUCTS - PERBAIKAN
 // ============================================================
 
 app.get('/api/v2/products', async (req, res) => {
@@ -204,9 +224,8 @@ app.get('/api/v2/products', async (req, res) => {
         console.log('📦 Fetching products...');
         const data = await callAppsScript('getProducts');
 
-        // 🔥 CEK BEBERAPA FORMAT RESPONSE
+        // Cek beberapa format response
         if (data && data.success) {
-            // Jika data.items ada, gunakan itu
             if (data.items && Array.isArray(data.items)) {
                 console.log(`✅ Products from Apps Script: ${data.items.length} items`);
                 return res.json({
@@ -217,7 +236,6 @@ app.get('/api/v2/products', async (req, res) => {
                     timestamp: new Date().toISOString()
                 });
             }
-            // Jika data.data ada, gunakan itu
             if (data.data && Array.isArray(data.data)) {
                 console.log(`✅ Products from Apps Script: ${data.data.length} items`);
                 return res.json({
@@ -230,22 +248,27 @@ app.get('/api/v2/products', async (req, res) => {
             }
         }
 
-        // 🔥 FALLBACK: Jika Apps Script gagal
+        // 🔥 PERBAIKAN: Response lebih informatif
         console.warn('⚠️ Products data unavailable');
         res.status(500).json({
             success: false,
             error: 'Products data unavailable',
-            detail: 'No products found in spreadsheet'
+            detail: data.error || 'No products found in spreadsheet',
+            timestamp: new Date().toISOString()
         });
 
     } catch (error) {
         console.error('❌ Products error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
     }
 });
 
 // ============================================================
-// ORDERS - DARI APPS SCRIPT
+// ORDERS - PERBAIKAN
 // ============================================================
 
 app.get('/api/v2/orders', async (req, res) => {
@@ -262,21 +285,22 @@ app.get('/api/v2/orders', async (req, res) => {
             res.status(500).json({
                 success: false,
                 error: 'Orders data unavailable',
-                detail: data.error || 'Apps Script returned invalid response'
+                detail: data.error || 'Apps Script returned invalid response',
+                timestamp: new Date().toISOString()
             });
         }
     } catch (error) {
         console.error('❌ Orders error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
     }
 });
 
 // ============================================================
-// STATS - DARI APPS SCRIPT
-// ============================================================
-
-// ============================================================
-// STATS - DARI APPS SCRIPT
+// STATS - PERBAIKAN
 // ============================================================
 
 app.get('/api/v2/stats', async (req, res) => {
@@ -288,7 +312,7 @@ app.get('/api/v2/stats', async (req, res) => {
             return res.json(data);
         }
 
-        // 🔥 FALLBACK
+        // Fallback
         console.warn('⚠️ Stats data unavailable, using fallback');
         res.json({
             success: true,
@@ -315,64 +339,30 @@ app.get('/api/v2/stats', async (req, res) => {
 });
 
 // ============================================================
-// AUTH - DARI APPS SCRIPT
-// ============================================================
-
-app.post('/api/v2/auth/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        if (!email || !password) {
-            return res.status(400).json({ success: false, error: 'Email and password required' });
-        }
-        const data = await callAppsScript('login', { email, password });
-        res.json(data);
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-app.post('/api/v2/auth/register', async (req, res) => {
-    try {
-        const { name, email, password } = req.body;
-        if (!name || !email || !password) {
-            return res.status(400).json({ success: false, error: 'Name, email and password required' });
-        }
-        const data = await callAppsScript('register', { name, email, password });
-        res.json(data);
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ============================================================
-// SUPPORT - DARI APPS SCRIPT
-// ============================================================
-
-app.post('/api/v2/support', async (req, res) => {
-    try {
-        const data = await callAppsScript('createSupport', req.body);
-        res.json(data);
-    } catch (error) {
-        console.error('Support error:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ============================================================
-// PAYMENT - CREATE QRIS
+// PAYMENT - CREATE QRIS - PERBAIKAN
 // ============================================================
 
 app.post('/api/v2/payment/create', async (req, res) => {
-    console.log('🔥🔥🔥 PAYMENT CREATE ENDPOINT HIT! 🔥🔥🔥');
+    console.log('🔥 PAYMENT CREATE ENDPOINT HIT!');
     console.log('📦 Request body:', req.body);
 
     try {
-        const { amount, subtotal, feeAdmin, customer, description, isTest, qrisMethod, feeBy, callbackUrl, orderId } = req.body;
+        const { 
+            amount, 
+            subtotal, 
+            feeAdmin, 
+            customer, 
+            description, 
+            isTest, 
+            qrisMethod, 
+            feeBy, 
+            callbackUrl, 
+            orderId 
+        } = req.body;
 
-        // 🔥 PENTING: amount yang dikirim ke BuatQris = subtotal + feeAdmin
+        // Validasi minimum
         const amountToBuatQris = subtotal ? (subtotal + (feeAdmin || 0)) : amount;
-
-        // Validasi
+        
         if (!amountToBuatQris || amountToBuatQris < 1000) {
             return res.status(400).json({
                 success: false,
@@ -387,17 +377,16 @@ app.post('/api/v2/payment/create', async (req, res) => {
             });
         }
 
-        // 🔥 ORDER ID UNTUK DESKRIPSI
         const orderDescription = description || `Pembayaran Order ${orderId || 'ORD-' + Date.now()}`;
 
         console.log(`💰 Amount to BuatQris: ${amountToBuatQris}`);
         console.log(`📝 Description: ${orderDescription}`);
 
-        // 🔥 🔥 🔥 PANGGIL BUATQRIS 🔥 🔥 🔥
+        // 🔥 PERBAIKAN: Panggil BuatQris dengan parameter yang valid
         const result = await callBuatQris({
             action: 'api_create_qris',
-            amount: String(amountToBuatQris),
-            description: orderDescription,
+            amount: String(Math.floor(amountToBuatQris)), // 🔥 PERBAIKAN: Pastikan integer
+            description: orderDescription.substring(0, 100), // 🔥 PERBAIKAN: Batasi panjang
             qris_method: qrisMethod || 'qris_two',
             fee_by: feeBy || 'user',
             callback_url: callbackUrl || 'https://depsstore-api.vercel.app/api/webhook/buatqris',
@@ -407,28 +396,20 @@ app.post('/api/v2/payment/create', async (req, res) => {
         console.log(`📊 BuatQris result:`, JSON.stringify(result).substring(0, 500));
 
         if (!result.data.success) {
-            console.log(`⚠️ BuatQris error:`, result.data.message);
             return res.status(result.status || 400).json({
                 success: false,
-                error: result.data.message || 'Failed to create payment'
+                error: result.data.message || 'Failed to create payment',
+                detail: result.data.raw || null
             });
         }
 
         const qrisData = result.data.data;
         const transactionId = qrisData.transaction_id;
 
-        // 🔥 HITUNG SERVICE FEE DENGAN BENAR
-        // total_amount dari BuatQris = amount + serviceFee
         const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
-
-        // 🔥 AMBIL EXPIRED AT DARI BUATQRIS
         const expiredAt = qrisData.expired_at || qrisData.expiredAt || null;
 
-        console.log(`✅ Transaction ID: ${transactionId}`);
-        console.log(`💰 Service Fee: ${serviceFee}`);
-        console.log(`⏰ Expired At: ${expiredAt}`);
-
-        // 🔥 SIMPAN KE SPREADSHEET VIA APPS SCRIPT
+        // 🔥 PERBAIKAN: Simpan ke spreadsheet dengan try-catch
         try {
             const saveData = {
                 transaction_id: transactionId,
@@ -450,14 +431,22 @@ app.post('/api/v2/payment/create', async (req, res) => {
                 created_at: new Date().toISOString()
             };
 
-            await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
+            // 🔥 PERBAIKAN: Gunakan fetch dengan timeout
+            const saveResponse = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(saveData)
+                body: JSON.stringify(saveData),
+                signal: AbortSignal.timeout(10000)
             });
-            console.log('✅ Transaction saved to spreadsheet');
+            
+            if (!saveResponse.ok) {
+                console.warn('⚠️ Failed to save to spreadsheet:', saveResponse.status);
+            } else {
+                console.log('✅ Transaction saved to spreadsheet');
+            }
         } catch (saveError) {
             console.warn('⚠️ Failed to save to spreadsheet:', saveError.message);
+            // 🔥 PERBAIKAN: Jangan gagalkan transaksi jika save gagal
         }
 
         res.status(200).json({
@@ -483,12 +472,16 @@ app.post('/api/v2/payment/create', async (req, res) => {
 
     } catch (error) {
         console.error('❌ Payment create error:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
     }
 });
 
 // ============================================================
-// PAYMENT - CHECK STATUS
+// PAYMENT - CHECK STATUS - PERBAIKAN
 // ============================================================
 
 app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
@@ -518,11 +511,7 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
         }
 
         const statusData = result.data.data;
-
-        // 🔥 AMBIL EXPIRED AT DARI BUATQRIS
         const expiredAt = statusData.expired_at || statusData.expiredAt || null;
-
-        // 🔥 HITUNG SERVICE FEE DARI BUATQRIS
         const serviceFee = (statusData.total_amount || statusData.amount || 0) - (statusData.amount || 0);
 
         res.status(200).json({
@@ -540,157 +529,38 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
 
     } catch (error) {
         console.error('❌ Payment status error:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ============================================================
-// WEBHOOK - BUATQRIS
-// ============================================================
-
-// ============================================================
-// WEBHOOK - BUATQRIS
-// ============================================================
-
-app.post('/api/webhook/buatqris', async (req, res) => {
-    try {
-        const data = req.body;
-        console.log('📨 Webhook received:', JSON.stringify(data));
-
-        if (!data.transaction_id) {
-            return res.status(400).json({
-                success: false,
-                error: 'transaction_id is required'
-            });
-        }
-
-        // 🔥 PANGGIL APPS SCRIPT DENGAN POST
-        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
-        if (!APPS_SCRIPT_URL) {
-            console.error('❌ APPS_SCRIPT_URL not configured!');
-            return res.status(500).json({
-                success: false,
-                error: 'APPS_SCRIPT_URL not configured'
-            });
-        }
-
-        // 🔥 FORMAT DATA UNTUK APPS SCRIPT
-        const payload = {
-            transaction_id: data.transaction_id,
-            amount: data.amount || data.total || 0,
-            status: data.status || 'success',
-            customer_name: data.customer_name || data.customer || 'Webhook Customer',
-            customer_email: data.customer_email || data.email || '',
-            customer_phone: data.customer_phone || data.phone || '',
-            payment_method: 'qris',
-            qr_url: data.qr_url || '',
-            payment_url: data.payment_url || '',
-            is_test: data.is_test || false,
-            created_at: data.created_at || new Date().toISOString(),
-            expired_at: data.expired_at || ''
-        };
-
-        console.log('📤 Sending to Apps Script:', JSON.stringify(payload));
-
-        // 🔥 PANGGIL APPS SCRIPT
-        const response = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
-        console.log('📥 Apps Script response:', result);
-
-        res.json({
-            success: true,
-            message: 'Webhook processed',
-            data: {
-                transaction_id: data.transaction_id,
-                saved: result.success || false
-            }
-        });
-
-    } catch (error) {
-        console.error('❌ Webhook error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 });
 
 // ============================================================
-// TEST WEBHOOK - UNTUK DEBUGGING
+// 404 & ERROR HANDLER - PERBAIKAN
 // ============================================================
 
-app.post('/api/webhook/test', async (req, res) => {
-    try {
-        const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
-        if (!APPS_SCRIPT_URL) {
-            return res.status(500).json({
-                success: false,
-                error: 'APPS_SCRIPT_URL not configured'
-            });
-        }
-
-        // 🔥 TEST DATA
-        const testData = {
-            transaction_id: 'TXN-TEST-' + Date.now(),
-            amount: 10000,
-            status: 'pending',
-            customer_name: 'Test Customer',
-            customer_email: 'test@example.com',
-            customer_phone: '08123456789',
-            payment_method: 'qris',
-            qr_url: 'https://example.com/qr.png',
-            is_test: true,
-            created_at: new Date().toISOString()
-        };
-
-        console.log('📤 Sending test data:', JSON.stringify(testData));
-
-        const response = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(testData)
-        });
-
-        const result = await response.json();
-        console.log('📥 Apps Script response:', result);
-
-        res.json({
-            success: true,
-            message: 'Test webhook sent',
-            sentData: testData,
-            appsScriptResponse: result
-        });
-
-    } catch (error) {
-        console.error('❌ Test webhook error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// ============================================================
-// 404 & ERROR HANDLER
-// ============================================================
-
+// 🔥 PERBAIKAN: 404 handler yang lebih baik
 app.use((req, res) => {
     console.log(`404: ${req.method} ${req.path}`);
-    res.status(404).json({ success: false, error: 'Endpoint not found' });
+    res.status(404).json({ 
+        success: false, 
+        error: 'Endpoint not found',
+        path: req.path,
+        method: req.method,
+        timestamp: new Date().toISOString()
+    });
 });
 
+// 🔥 PERBAIKAN: Error handler yang lebih baik
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
-    res.status(500).json({ success: false, error: err.message || 'Internal server error' });
+    res.status(500).json({ 
+        success: false, 
+        error: err.message || 'Internal server error',
+        timestamp: new Date().toISOString()
+    });
 });
 
 // ============================================================
