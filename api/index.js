@@ -1,5 +1,5 @@
-// api/index.js - Vercel Serverless Function
-// DepsStore API v3.0.0 - OPTIMIZED FOR VERCEL
+// api/index.js - Vercel Serverless Function (FIXED ORDER)
+// DepsStore API v3.0.0
 
 const express = require('express');
 const cors = require('cors');
@@ -8,21 +8,20 @@ const fetch = require('node-fetch');
 const app = express();
 
 // ============================================================
-// MIDDLEWARE - PERBAIKAN
+// MIDDLEWARE
 // ============================================================
 
 app.use(cors({
-    origin: '*', // Izinkan semua origin untuk development
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// 🔥 PERBAIKAN: Tambahkan limit untuk payload besar
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ============================================================
-// KONFIGURASI - PERBAIKAN
+// KONFIGURASI
 // ============================================================
 
 const BQ_ACCOUNT_ID = process.env.BUATQRIS_ACCOUNT_ID;
@@ -30,16 +29,69 @@ const BQ_SECRET_TOKEN = process.env.BUATQRIS_SECRET_TOKEN;
 const BQ_MODE = process.env.BUATQRIS_MODE || 'sandbox';
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
 
-// 🔥 PERBAIKAN: Logging lebih informatif
 console.log('🚀 DepsStore API v3.0.0');
 console.log(`📊 BuatQris Mode: ${BQ_MODE}`);
 console.log(`📋 Account ID: ${BQ_ACCOUNT_ID ? '✅ Set' : '❌ Not Set'}`);
 console.log(`📋 Apps Script URL: ${APPS_SCRIPT_URL ? '✅ Set' : '❌ Not Set'}`);
 
-// 🔥 PERBAIKAN: Tambahkan timeout default
-const DEFAULT_TIMEOUT = 60000; // 30 detik
+const DEFAULT_TIMEOUT = 60000;
 
-// api/index.js - TAMBAHKAN RETRY
+// ============================================================
+// 🔥 HELPER: CALL APPS SCRIPT (DEFINISIKAN DULU)
+// ============================================================
+
+async function callAppsScript(action, body = null) {
+    if (!APPS_SCRIPT_URL) {
+        console.warn('⚠️ APPS_SCRIPT_URL not configured');
+        return { success: false, error: 'APPS_SCRIPT_URL not configured' };
+    }
+
+    // 🔥 KIRIM action DI DALAM BODY (bukan di URL)
+    const targetUrl = APPS_SCRIPT_URL;
+    console.log(`📡 Apps Script: ${action}`);
+    console.log(`📡 Target URL: ${targetUrl}`);
+
+    const options = {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            action: action,
+            ...body
+        }),
+        signal: AbortSignal.timeout(30000)
+    };
+
+    try {
+        const response = await fetch(targetUrl, options);
+        const text = await response.text();
+        console.log(`📥 Response status: ${response.status}`);
+        console.log(`📥 Response preview: ${text.substring(0, 300)}`);
+
+        if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+            console.warn('⚠️ Apps Script returned HTML');
+            return { success: false, error: 'Apps Script returned HTML', isHtml: true };
+        }
+
+        try {
+            const jsonData = JSON.parse(text);
+            console.log(`✅ Apps Script response:`, JSON.stringify(jsonData).substring(0, 300));
+            return jsonData;
+        } catch (parseError) {
+            console.warn('⚠️ Apps Script returned invalid JSON:', text.substring(0, 200));
+            return { success: false, error: 'Invalid JSON', raw: text.substring(0, 200) };
+        }
+    } catch (error) {
+        console.warn('⚠️ Apps Script error:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+// ============================================================
+// 🔥 HELPER: CALL APPS SCRIPT WITH RETRY
+// ============================================================
 
 async function callAppsScriptWithRetry(action, body = null, maxRetries = 3) {
     let lastError = null;
@@ -53,12 +105,10 @@ async function callAppsScriptWithRetry(action, body = null, maxRetries = 3) {
                 return result;
             }
             
-            // Jika gagal tapi bukan error timeout, langsung return
             if (result && result.error && !result.error.includes('aborted')) {
                 return result;
             }
             
-            // Tunggu sebelum retry
             if (attempt < maxRetries) {
                 await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
             }
@@ -76,7 +126,7 @@ async function callAppsScriptWithRetry(action, body = null, maxRetries = 3) {
 }
 
 // ============================================================
-// HELPER: CALL BUATQRIS API - PERBAIKAN
+// 🔥 HELPER: CALL BUATQRIS API
 // ============================================================
 
 async function callBuatQris(params) {
@@ -86,7 +136,7 @@ async function callBuatQris(params) {
             status: 500,
             data: {
                 success: false,
-                error: 'BuatQris credentials not configured. Please set BUATQRIS_ACCOUNT_ID and BUATQRIS_SECRET_TOKEN in environment variables.'
+                error: 'BuatQris credentials not configured.'
             }
         };
     }
@@ -108,7 +158,6 @@ async function callBuatQris(params) {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: formData,
-        // 🔥 PERBAIKAN: Tambahkan timeout
         signal: AbortSignal.timeout(DEFAULT_TIMEOUT)
     };
 
@@ -147,141 +196,7 @@ async function callBuatQris(params) {
 }
 
 // ============================================================
-// HELPER: CALL APPS SCRIPT - PERBAIKAN
-// ============================================================
-
-async function callAppsScript(action, body = null) {
-    if (!APPS_SCRIPT_URL) {
-        console.warn('⚠️ APPS_SCRIPT_URL not configured');
-        return { success: false, error: 'APPS_SCRIPT_URL not configured' };
-    }
-
-    const targetUrl = `${APPS_SCRIPT_URL}?action=${encodeURIComponent(action)}`;
-    console.log(`📡 Apps Script: ${action}`);
-
-    const options = {
-        method: body ? 'POST' : 'GET',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-        // 🔥 PERBAIKAN: Tambahkan timeout lebih lama
-        signal: AbortSignal.timeout(30000) // 30 detik (sebelumnya 15 detik)
-    };
-
-    if (body) {
-        options.body = JSON.stringify(body);
-    }
-
-    try {
-        const response = await fetch(targetUrl, options);
-        const text = await response.text();
-
-        if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
-            console.warn('⚠️ Apps Script returned HTML');
-            return { success: false, error: 'Apps Script returned HTML', isHtml: true };
-        }
-
-        try {
-            const jsonData = JSON.parse(text);
-            console.log(`✅ Apps Script response:`, JSON.stringify(jsonData).substring(0, 300));
-            return jsonData;
-        } catch (parseError) {
-            console.warn('⚠️ Apps Script returned invalid JSON:', text.substring(0, 200));
-            return { success: false, error: 'Invalid JSON', raw: text.substring(0, 200) };
-        }
-    } catch (error) {
-        console.warn('⚠️ Apps Script error:', error.message);
-        return { success: false, error: error.message };
-    }
-}
-
-// ============================================================
-// AUTH - LOGIN & REGISTER
-// ============================================================
-
-// api/index.js - PERBAIKAN LOGIN
-
-app.post('/api/v2/auth/login', async (req, res) => {
-    console.log('🔐 Login attempt:', req.body.email);
-    
-    try {
-        const { email, password } = req.body;
-        
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                error: 'Email and password are required'
-            });
-        }
-        
-        // 🔥 PAKAI RETRY
-        const result = await callAppsScriptWithRetry('login', { email, password });
-        
-        console.log('📥 Login result success:', result?.success);
-        
-        if (result && result.success) {
-            console.log('✅ Login success:', email);
-            return res.json(result);
-        } else {
-            const errorMsg = result?.message || result?.error || 'Invalid credentials';
-            console.log('❌ Login failed:', email, errorMsg);
-            return res.status(401).json({
-                success: false,
-                error: errorMsg
-            });
-        }
-    } catch (error) {
-        console.error('❌ Login error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
-    }
-});
-
-// api/index.js - PERBAIKAN REGISTER
-
-app.post('/api/v2/auth/register', async (req, res) => {
-    console.log('📝 Register attempt:', req.body.email);
-    
-    try {
-        const { name, email, password } = req.body;
-        
-        if (!name || !email || !password) {
-            return res.status(400).json({
-                success: false,
-                error: 'Name, email and password are required'
-            });
-        }
-        
-        // 🔥 PAKAI RETRY
-        const result = await callAppsScriptWithRetry('register', { name, email, password });
-        
-        console.log('📥 Register result:', JSON.stringify(result));
-        
-        if (result && result.success) {
-            console.log('✅ Register success:', email);
-            return res.json(result);
-        } else {
-            const errorMsg = result?.message || result?.error || 'Registration failed';
-            console.log('❌ Register failed:', email, errorMsg);
-            return res.status(400).json({
-                success: false,
-                error: errorMsg
-            });
-        }
-    } catch (error) {
-        console.error('❌ Register error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
-    }
-});
-
-// ============================================================
-// ROOT & HEALTH - PERBAIKAN
+// 🔥 ROOT & HEALTH
 // ============================================================
 
 app.get('/', (req, res) => {
@@ -290,7 +205,6 @@ app.get('/', (req, res) => {
         message: 'DepsStore API v3.0.0',
         mode: BQ_MODE,
         timestamp: new Date().toISOString(),
-        // 🔥 PERBAIKAN: Tambahkan status koneksi
         connections: {
             buatqris: BQ_ACCOUNT_ID && BQ_SECRET_TOKEN ? 'configured' : 'missing',
             appsScript: APPS_SCRIPT_URL ? 'configured' : 'missing'
@@ -325,7 +239,6 @@ app.get('/api/v2/system/health', (req, res) => {
             mode: BQ_MODE,
             timestamp: new Date().toISOString(),
             version: '3.0.0',
-            // 🔥 PERBAIKAN: Cek koneksi ke BuatQris
             buatqris: BQ_ACCOUNT_ID && BQ_SECRET_TOKEN ? 'connected' : 'disconnected',
             appsScript: APPS_SCRIPT_URL ? 'connected' : 'disconnected'
         }
@@ -333,7 +246,85 @@ app.get('/api/v2/system/health', (req, res) => {
 });
 
 // ============================================================
-// PRODUCTS - PERBAIKAN
+// 🔥 AUTH - LOGIN
+// ============================================================
+
+app.post('/api/v2/auth/login', async (req, res) => {
+    console.log('🔐 Login attempt:', req.body.email);
+    
+    try {
+        const { email, password } = req.body;
+        
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and password are required'
+            });
+        }
+        
+        const result = await callAppsScriptWithRetry('login', { email, password });
+        
+        if (result && result.success) {
+            console.log('✅ Login success:', email);
+            return res.json(result);
+        } else {
+            const errorMsg = result?.message || result?.error || 'Invalid credentials';
+            console.log('❌ Login failed:', email, errorMsg);
+            return res.status(401).json({
+                success: false,
+                error: errorMsg
+            });
+        }
+    } catch (error) {
+        console.error('❌ Login error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error'
+        });
+    }
+});
+
+// ============================================================
+// 🔥 AUTH - REGISTER
+// ============================================================
+
+app.post('/api/v2/auth/register', async (req, res) => {
+    console.log('📝 Register attempt:', req.body.email);
+    
+    try {
+        const { name, email, password } = req.body;
+        
+        if (!name || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Name, email and password are required'
+            });
+        }
+        
+        const result = await callAppsScriptWithRetry('register', { name, email, password });
+        
+        if (result && result.success) {
+            console.log('✅ Register success:', email);
+            return res.json(result);
+        } else {
+            const errorMsg = result?.message || result?.error || 'Registration failed';
+            console.log('❌ Register failed:', email, errorMsg);
+            return res.status(400).json({
+                success: false,
+                error: errorMsg
+            });
+        }
+    } catch (error) {
+        console.error('❌ Register error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error'
+        });
+    }
+});
+
+// ============================================================
+// 🔥 PRODUCTS
 // ============================================================
 
 app.get('/api/v2/products', async (req, res) => {
@@ -341,10 +332,8 @@ app.get('/api/v2/products', async (req, res) => {
         console.log('📦 Fetching products...');
         const data = await callAppsScript('getProducts');
 
-        // Cek beberapa format response
         if (data && data.success) {
             if (data.items && Array.isArray(data.items)) {
-                console.log(`✅ Products from Apps Script: ${data.items.length} items`);
                 return res.json({
                     success: true,
                     data: data.items,
@@ -354,7 +343,6 @@ app.get('/api/v2/products', async (req, res) => {
                 });
             }
             if (data.data && Array.isArray(data.data)) {
-                console.log(`✅ Products from Apps Script: ${data.data.length} items`);
                 return res.json({
                     success: true,
                     data: data.data,
@@ -365,12 +353,10 @@ app.get('/api/v2/products', async (req, res) => {
             }
         }
 
-        // 🔥 PERBAIKAN: Response lebih informatif
-        console.warn('⚠️ Products data unavailable');
         res.status(500).json({
             success: false,
             error: 'Products data unavailable',
-            detail: data.error || 'No products found in spreadsheet',
+            detail: data.error || 'No products found',
             timestamp: new Date().toISOString()
         });
 
@@ -385,7 +371,7 @@ app.get('/api/v2/products', async (req, res) => {
 });
 
 // ============================================================
-// ORDERS - PERBAIKAN
+// 🔥 ORDERS
 // ============================================================
 
 app.get('/api/v2/orders', async (req, res) => {
@@ -398,11 +384,10 @@ app.get('/api/v2/orders', async (req, res) => {
             console.log(`✅ Orders from Apps Script: ${data.items.length} items`);
             res.json(data);
         } else {
-            console.warn('⚠️ Orders data unavailable');
             res.status(500).json({
                 success: false,
                 error: 'Orders data unavailable',
-                detail: data.error || 'Apps Script returned invalid response',
+                detail: data.error || 'Invalid response',
                 timestamp: new Date().toISOString()
             });
         }
@@ -417,7 +402,7 @@ app.get('/api/v2/orders', async (req, res) => {
 });
 
 // ============================================================
-// STATS - PERBAIKAN
+// 🔥 STATS
 // ============================================================
 
 app.get('/api/v2/stats', async (req, res) => {
@@ -429,8 +414,6 @@ app.get('/api/v2/stats', async (req, res) => {
             return res.json(data);
         }
 
-        // Fallback
-        console.warn('⚠️ Stats data unavailable, using fallback');
         res.json({
             success: true,
             data: {
@@ -456,7 +439,7 @@ app.get('/api/v2/stats', async (req, res) => {
 });
 
 // ============================================================
-// PAYMENT - CREATE QRIS - PERBAIKAN
+// 🔥 PAYMENT - CREATE QRIS
 // ============================================================
 
 app.post('/api/v2/payment/create', async (req, res) => {
@@ -477,7 +460,6 @@ app.post('/api/v2/payment/create', async (req, res) => {
             orderId 
         } = req.body;
 
-        // Validasi minimum
         const amountToBuatQris = subtotal ? (subtotal + (feeAdmin || 0)) : amount;
         
         if (!amountToBuatQris || amountToBuatQris < 1000) {
@@ -497,20 +479,16 @@ app.post('/api/v2/payment/create', async (req, res) => {
         const orderDescription = description || `Pembayaran Order ${orderId || 'ORD-' + Date.now()}`;
 
         console.log(`💰 Amount to BuatQris: ${amountToBuatQris}`);
-        console.log(`📝 Description: ${orderDescription}`);
 
-        // 🔥 PERBAIKAN: Panggil BuatQris dengan parameter yang valid
         const result = await callBuatQris({
             action: 'api_create_qris',
-            amount: String(Math.floor(amountToBuatQris)), // 🔥 PERBAIKAN: Pastikan integer
-            description: orderDescription.substring(0, 100), // 🔥 PERBAIKAN: Batasi panjang
+            amount: String(Math.floor(amountToBuatQris)),
+            description: orderDescription.substring(0, 100),
             qris_method: qrisMethod || 'qris_two',
             fee_by: feeBy || 'user',
             callback_url: callbackUrl || 'https://depsstore-api.vercel.app/api/webhook/buatqris',
             test: (isTest !== undefined ? isTest : (BQ_MODE === 'sandbox')) ? '1' : '0'
         });
-
-        console.log(`📊 BuatQris result:`, JSON.stringify(result).substring(0, 500));
 
         if (!result.data.success) {
             return res.status(result.status || 400).json({
@@ -522,11 +500,10 @@ app.post('/api/v2/payment/create', async (req, res) => {
 
         const qrisData = result.data.data;
         const transactionId = qrisData.transaction_id;
-
         const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
         const expiredAt = qrisData.expired_at || qrisData.expiredAt || null;
 
-        // 🔥 PERBAIKAN: Simpan ke spreadsheet dengan try-catch
+        // Simpan ke spreadsheet
         try {
             const saveData = {
                 transaction_id: transactionId,
@@ -548,7 +525,6 @@ app.post('/api/v2/payment/create', async (req, res) => {
                 created_at: new Date().toISOString()
             };
 
-            // 🔥 PERBAIKAN: Gunakan fetch dengan timeout
             const saveResponse = await fetch(`${APPS_SCRIPT_URL}?action=saveTransaction`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -563,7 +539,6 @@ app.post('/api/v2/payment/create', async (req, res) => {
             }
         } catch (saveError) {
             console.warn('⚠️ Failed to save to spreadsheet:', saveError.message);
-            // 🔥 PERBAIKAN: Jangan gagalkan transaksi jika save gagal
         }
 
         res.status(200).json({
@@ -598,7 +573,7 @@ app.post('/api/v2/payment/create', async (req, res) => {
 });
 
 // ============================================================
-// PAYMENT - CHECK STATUS - PERBAIKAN
+// 🔥 PAYMENT - CHECK STATUS
 // ============================================================
 
 app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
@@ -617,8 +592,6 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
             action: 'api_check_status',
             transaction_id: transactionId
         });
-
-        console.log(`📊 BuatQris status result:`, JSON.stringify(result).substring(0, 300));
 
         if (!result.data.success) {
             return res.status(result.status || 400).json({
@@ -655,10 +628,9 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
 });
 
 // ============================================================
-// 404 & ERROR HANDLER - PERBAIKAN
+// 🔥 404 & ERROR HANDLER
 // ============================================================
 
-// 🔥 PERBAIKAN: 404 handler yang lebih baik
 app.use((req, res) => {
     console.log(`404: ${req.method} ${req.path}`);
     res.status(404).json({ 
@@ -670,7 +642,6 @@ app.use((req, res) => {
     });
 });
 
-// 🔥 PERBAIKAN: Error handler yang lebih baik
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
     res.status(500).json({ 
