@@ -120,7 +120,6 @@ async function callAppsScript(action, body = null) {
         return { success: false, error: 'APPS_SCRIPT_URL not configured' };
     }
 
-    // 🔥 PERBAIKAN: Encode action parameter
     const targetUrl = `${APPS_SCRIPT_URL}?action=${encodeURIComponent(action)}`;
     console.log(`📡 Apps Script: ${action}`);
 
@@ -130,8 +129,8 @@ async function callAppsScript(action, body = null) {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         },
-        // 🔥 PERBAIKAN: Tambahkan timeout
-        signal: AbortSignal.timeout(15000)
+        // 🔥 PERBAIKAN: Tambahkan timeout lebih lama
+        signal: AbortSignal.timeout(30000) // 30 detik (sebelumnya 15 detik)
     };
 
     if (body) {
@@ -142,13 +141,11 @@ async function callAppsScript(action, body = null) {
         const response = await fetch(targetUrl, options);
         const text = await response.text();
 
-        // Cek apakah response adalah HTML
         if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
             console.warn('⚠️ Apps Script returned HTML');
             return { success: false, error: 'Apps Script returned HTML', isHtml: true };
         }
 
-        // Parse JSON
         try {
             const jsonData = JSON.parse(text);
             console.log(`✅ Apps Script response:`, JSON.stringify(jsonData).substring(0, 300));
