@@ -37,7 +37,43 @@ console.log(`📋 Account ID: ${BQ_ACCOUNT_ID ? '✅ Set' : '❌ Not Set'}`);
 console.log(`📋 Apps Script URL: ${APPS_SCRIPT_URL ? '✅ Set' : '❌ Not Set'}`);
 
 // 🔥 PERBAIKAN: Tambahkan timeout default
-const DEFAULT_TIMEOUT = 30000; // 30 detik
+const DEFAULT_TIMEOUT = 60000; // 30 detik
+
+// api/index.js - TAMBAHKAN RETRY
+
+async function callAppsScriptWithRetry(action, body = null, maxRetries = 3) {
+    let lastError = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`📡 Attempt ${attempt}/${maxRetries}: ${action}`);
+            const result = await callAppsScript(action, body);
+            
+            if (result && result.success) {
+                return result;
+            }
+            
+            // Jika gagal tapi bukan error timeout, langsung return
+            if (result && result.error && !result.error.includes('aborted')) {
+                return result;
+            }
+            
+            // Tunggu sebelum retry
+            if (attempt < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            }
+            
+            lastError = result?.error || 'Unknown error';
+        } catch (error) {
+            lastError = error.message;
+            if (attempt < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            }
+        }
+    }
+    
+    return { success: false, error: lastError || 'Max retries exceeded' };
+}
 
 // ============================================================
 // HELPER: CALL BUATQRIS API - PERBAIKAN
@@ -164,6 +200,8 @@ async function callAppsScript(action, body = null) {
 // AUTH - LOGIN & REGISTER
 // ============================================================
 
+// api/index.js - PERBAIKAN LOGIN
+
 app.post('/api/v2/auth/login', async (req, res) => {
     console.log('🔐 Login attempt:', req.body.email);
     
@@ -177,27 +215,32 @@ app.post('/api/v2/auth/login', async (req, res) => {
             });
         }
         
-        // Panggil Apps Script untuk login
-        const result = await callAppsScript('login', { email, password });
+        // 🔥 PAKAI RETRY
+        const result = await callAppsScriptWithRetry('login', { email, password });
+        
+        console.log('📥 Login result success:', result?.success);
         
         if (result && result.success) {
             console.log('✅ Login success:', email);
             return res.json(result);
         } else {
-            console.log('❌ Login failed:', email);
+            const errorMsg = result?.message || result?.error || 'Invalid credentials';
+            console.log('❌ Login failed:', email, errorMsg);
             return res.status(401).json({
                 success: false,
-                error: result?.message || 'Invalid credentials'
+                error: errorMsg
             });
         }
     } catch (error) {
         console.error('❌ Login error:', error);
         res.status(500).json({
             success: false,
-            error: error.message
+            error: error.message || 'Internal server error'
         });
     }
 });
+
+// api/index.js - PERBAIKAN REGISTER
 
 app.post('/api/v2/auth/register', async (req, res) => {
     console.log('📝 Register attempt:', req.body.email);
@@ -212,22 +255,27 @@ app.post('/api/v2/auth/register', async (req, res) => {
             });
         }
         
-        const result = await callAppsScript('register', { name, email, password });
+        // 🔥 PAKAI RETRY
+        const result = await callAppsScriptWithRetry('register', { name, email, password });
+        
+        console.log('📥 Register result:', JSON.stringify(result));
         
         if (result && result.success) {
             console.log('✅ Register success:', email);
             return res.json(result);
         } else {
+            const errorMsg = result?.message || result?.error || 'Registration failed';
+            console.log('❌ Register failed:', email, errorMsg);
             return res.status(400).json({
                 success: false,
-                error: result?.message || 'Registration failed'
+                error: errorMsg
             });
         }
     } catch (error) {
         console.error('❌ Register error:', error);
         res.status(500).json({
             success: false,
-            error: error.message
+            error: error.message || 'Internal server error'
         });
     }
 });
