@@ -164,6 +164,78 @@ async function callAppsScript(action, body = null) {
 }
 
 // ============================================================
+// AUTH - LOGIN & REGISTER
+// ============================================================
+
+app.post('/api/v2/auth/login', async (req, res) => {
+    console.log('🔐 Login attempt:', req.body.email);
+    
+    try {
+        const { email, password } = req.body;
+        
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and password are required'
+            });
+        }
+        
+        // Panggil Apps Script untuk login
+        const result = await callAppsScript('login', { email, password });
+        
+        if (result && result.success) {
+            console.log('✅ Login success:', email);
+            return res.json(result);
+        } else {
+            console.log('❌ Login failed:', email);
+            return res.status(401).json({
+                success: false,
+                error: result?.message || 'Invalid credentials'
+            });
+        }
+    } catch (error) {
+        console.error('❌ Login error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+app.post('/api/v2/auth/register', async (req, res) => {
+    console.log('📝 Register attempt:', req.body.email);
+    
+    try {
+        const { name, email, password } = req.body;
+        
+        if (!name || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Name, email and password are required'
+            });
+        }
+        
+        const result = await callAppsScript('register', { name, email, password });
+        
+        if (result && result.success) {
+            console.log('✅ Register success:', email);
+            return res.json(result);
+        } else {
+            return res.status(400).json({
+                success: false,
+                error: result?.message || 'Registration failed'
+            });
+        }
+    } catch (error) {
+        console.error('❌ Register error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============================================================
 // ROOT & HEALTH - PERBAIKAN
 // ============================================================
 
