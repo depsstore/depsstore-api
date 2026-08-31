@@ -1,10 +1,10 @@
 {
     "name": "depsstore-api",
-    "version": "2.9.0",
+    "version": "3.0.0",
     "type": "commonjs",
     "scripts": {
         "start": "node api/index.js",
-        "vercel-build": "npm install --production"
+        "vercel-build": "npm install"
     },
     "dependencies": {
         "express": "^4.18.2",
