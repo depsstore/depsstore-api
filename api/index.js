@@ -632,34 +632,26 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
 // 🔥 WEBHOOK - BUATQRIS
 // ============================================================
 
+// api/index.js - WEBHOOK HANDLER (SIMPLIFIED)
+
 app.post('/api/webhook/buatqris', async (req, res) => {
-    console.log('📨 Webhook received');
-    console.log('📦 Headers:', JSON.stringify(req.headers));
-    console.log('📦 Body:', JSON.stringify(req.body));
+    console.log('Webhook received');
+    console.log('Body:', JSON.stringify(req.body));
     
     try {
         const data = req.body;
         
-        if (!data) {
-            console.error('❌ No data received');
-            return res.status(400).json({
-                success: false,
-                error: 'No data received'
-            });
-        }
-        
-        if (!data.transaction_id) {
-            console.error('❌ transaction_id is required');
+        if (!data || !data.transaction_id) {
             return res.status(400).json({
                 success: false,
                 error: 'transaction_id is required'
             });
         }
         
-        // 🔥 FORMAT DATA UNTUK APPS SCRIPT
+        // 🔥 SIMPAN KE APPS SCRIPT DENGAN TIMEOUT 60 DETIK
         const saveData = {
             transaction_id: data.transaction_id,
-            order_id: data.order_id || data.orderId || 'ORD-' + Date.now(),
+            order_id: data.order_id || 'ORD-' + Date.now(),
             amount: parseFloat(data.amount || data.total || 0),
             subtotal: parseFloat(data.subtotal || data.amount || 0),
             fee_admin: parseFloat(data.fee_admin || data.feeAdmin || 0),
@@ -677,42 +669,40 @@ app.post('/api/webhook/buatqris', async (req, res) => {
             created_at: data.created_at || new Date().toISOString()
         };
         
-        console.log('📤 Sending to Apps Script:', JSON.stringify(saveData));
+        console.log('Sending to Apps Script:', JSON.stringify(saveData));
         
-        // 🔥 PANGGIL APPS SCRIPT
-        if (!APPS_SCRIPT_URL) {
-            console.error('❌ APPS_SCRIPT_URL not configured');
-            return res.status(500).json({
-                success: false,
-                error: 'APPS_SCRIPT_URL not configured'
+        // 🔥 KIRIM KE APPS SCRIPT - TAPI JANGAN TUNGGU RESPONSE
+        // Kirim async, langsung response ke BuatQris
+        try {
+            await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'saveTransaction',
+                    ...saveData
+                }),
+                signal: AbortSignal.timeout(60000)
             });
+        } catch (fetchError) {
+            console.error('Fetch error (non-critical):', fetchError.message);
+            // Tetap lanjutkan response sukses
         }
         
-        // 🔥 KIRIM KE APPS SCRIPT
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                action: 'saveTransaction',
-                ...saveData
-            }),
-            signal: AbortSignal.timeout(30000)
-        });
-        
-        const result = await response.json();
-        console.log('📥 Apps Script response:', JSON.stringify(result));
-        
+        // 🔥 RESPONSE CEPAT KE BUATQRIS
         res.json({
             success: true,
-            message: 'Webhook processed',
-            data: result
+            message: 'Webhook received',
+            data: {
+                transaction_id: data.transaction_id,
+                status: 'processing'
+            }
         });
         
     } catch (error) {
-        console.error('❌ Webhook error:', error);
+        console.error('Webhook error:', error);
         res.status(500).json({
             success: false,
             error: error.message
