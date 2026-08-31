@@ -40,16 +40,16 @@ const DEFAULT_TIMEOUT = 60000;
 // 🔥 HELPER: CALL APPS SCRIPT (DEFINISIKAN DULU)
 // ============================================================
 
+// api/index.js - PERBAIKAN TIMEOUT
+
 async function callAppsScript(action, body = null) {
     if (!APPS_SCRIPT_URL) {
-        console.warn('⚠️ APPS_SCRIPT_URL not configured');
+        console.warn('APPS_SCRIPT_URL not configured');
         return { success: false, error: 'APPS_SCRIPT_URL not configured' };
     }
 
-    // 🔥 KIRIM action DI DALAM BODY (bukan di URL)
     const targetUrl = APPS_SCRIPT_URL;
-    console.log(`📡 Apps Script: ${action}`);
-    console.log(`📡 Target URL: ${targetUrl}`);
+    console.log(`Apps Script: ${action}`);
 
     const options = {
         method: 'POST',
@@ -61,30 +61,31 @@ async function callAppsScript(action, body = null) {
             action: action,
             ...body
         }),
-        signal: AbortSignal.timeout(30000)
+        // 🔥 TIMEOUT 60 DETIK (lebih lama)
+        signal: AbortSignal.timeout(60000)
     };
 
     try {
         const response = await fetch(targetUrl, options);
         const text = await response.text();
-        console.log(`📥 Response status: ${response.status}`);
-        console.log(`📥 Response preview: ${text.substring(0, 300)}`);
+        console.log(`Response status: ${response.status}`);
+        console.log(`Response preview: ${text.substring(0, 300)}`);
 
         if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
-            console.warn('⚠️ Apps Script returned HTML');
+            console.warn('Apps Script returned HTML');
             return { success: false, error: 'Apps Script returned HTML', isHtml: true };
         }
 
         try {
             const jsonData = JSON.parse(text);
-            console.log(`✅ Apps Script response:`, JSON.stringify(jsonData).substring(0, 300));
+            console.log(`Apps Script response:`, JSON.stringify(jsonData).substring(0, 300));
             return jsonData;
         } catch (parseError) {
-            console.warn('⚠️ Apps Script returned invalid JSON:', text.substring(0, 200));
+            console.warn('Apps Script returned invalid JSON:', text.substring(0, 200));
             return { success: false, error: 'Invalid JSON', raw: text.substring(0, 200) };
         }
     } catch (error) {
-        console.warn('⚠️ Apps Script error:', error.message);
+        console.warn('Apps Script error:', error.message);
         return { success: false, error: error.message };
     }
 }
