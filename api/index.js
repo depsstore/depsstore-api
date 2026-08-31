@@ -439,6 +439,98 @@ app.get('/api/v2/stats', async (req, res) => {
 });
 
 // ============================================================
+// 🔥 WEBHOOK - BUATQRIS
+// ============================================================
+
+app.post('/api/webhook/buatqris', async (req, res) => {
+    console.log('📨 Webhook received');
+    console.log('📦 Headers:', JSON.stringify(req.headers));
+    console.log('📦 Body:', JSON.stringify(req.body));
+    
+    try {
+        const data = req.body;
+        
+        if (!data) {
+            console.error('❌ No data received');
+            return res.status(400).json({
+                success: false,
+                error: 'No data received'
+            });
+        }
+        
+        if (!data.transaction_id) {
+            console.error('❌ transaction_id is required');
+            return res.status(400).json({
+                success: false,
+                error: 'transaction_id is required'
+            });
+        }
+        
+        // 🔥 FORMAT DATA UNTUK APPS SCRIPT
+        const saveData = {
+            transaction_id: data.transaction_id,
+            order_id: data.order_id || data.orderId || 'ORD-' + Date.now(),
+            amount: parseFloat(data.amount || data.total || 0),
+            subtotal: parseFloat(data.subtotal || data.amount || 0),
+            fee_admin: parseFloat(data.fee_admin || data.feeAdmin || 0),
+            service_fee: parseFloat(data.service_fee || data.serviceFee || 0),
+            total_amount: parseFloat(data.total_amount || data.total || data.amount || 0),
+            status: data.status || 'pending',
+            customer_name: data.customer_name || data.customer || 'Customer',
+            customer_email: data.customer_email || data.email || '',
+            customer_phone: data.customer_phone || data.phone || '',
+            payment_method: data.payment_method || 'qris',
+            qr_url: data.qr_url || '',
+            payment_url: data.payment_url || '',
+            is_test: data.is_test || data.isTest || false,
+            expired_at: data.expired_at || data.expiredAt || '',
+            created_at: data.created_at || new Date().toISOString()
+        };
+        
+        console.log('📤 Sending to Apps Script:', JSON.stringify(saveData));
+        
+        // 🔥 PANGGIL APPS SCRIPT
+        if (!APPS_SCRIPT_URL) {
+            console.error('❌ APPS_SCRIPT_URL not configured');
+            return res.status(500).json({
+                success: false,
+                error: 'APPS_SCRIPT_URL not configured'
+            });
+        }
+        
+        // 🔥 KIRIM KE APPS SCRIPT
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'saveTransaction',
+                ...saveData
+            }),
+            signal: AbortSignal.timeout(30000)
+        });
+        
+        const result = await response.json();
+        console.log('📥 Apps Script response:', JSON.stringify(result));
+        
+        res.json({
+            success: true,
+            message: 'Webhook processed',
+            data: result
+        });
+        
+    } catch (error) {
+        console.error('❌ Webhook error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============================================================
 // 🔥 PAYMENT - CREATE QRIS
 // ============================================================
 
