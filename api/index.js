@@ -711,6 +711,55 @@ app.post('/api/webhook/buatqris', async (req, res) => {
 });
 
 // ============================================================
+// 🔥 VISITORS
+// ============================================================
+
+app.get('/api/v2/visitors', async (req, res) => {
+    try {
+        console.log('📊 Fetching visitors...');
+        const data = await callAppsScript('getVisitors');
+        res.setHeader('Cache-Control', 'no-store');
+
+        if (data && data.success) {
+            return res.json(data);
+        }
+
+        res.json({
+            success: true,
+            data: {
+                total: 0,
+                unique: 0,
+                today: 0,
+                week: 0,
+                month: 0
+            }
+        });
+    } catch (error) {
+        console.error('❌ Visitors error:', error);
+        res.json({
+            success: true,
+            data: { total: 0, unique: 0, today: 0 }
+        });
+    }
+});
+
+app.post('/api/v2/visitors/track', async (req, res) => {
+    try {
+        console.log('📊 Tracking visitor...');
+        const data = await callAppsScript('trackVisitor', req.body);
+
+        if (data && data.success) {
+            return res.json(data);
+        }
+
+        res.json({ success: false, error: data?.error || 'Unknown error' });
+    } catch (error) {
+        console.error('❌ Track visitor error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
 // 🔥 404 & ERROR HANDLER
 // ============================================================
 
