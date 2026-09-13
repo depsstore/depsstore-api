@@ -223,7 +223,10 @@ app.get('/api/v2', (req, res) => {
             '/api/v2/auth/register',
             '/api/v2/payment/create',
             '/api/v2/payment/status/:transactionId',
-            '/api/v2/support'
+            '/api/v2/support',
+            '/api/v2/visitors',           // 🔥 TAMBAHKAN
+            '/api/v2/visitors/track',     // 🔥 TAMBAHKAN
+            '/api/v2/visitors/reset'      // 🔥 TAMBAHKAN
         ]
     });
 });
@@ -770,7 +773,6 @@ app.post('/api/v2/visitors/reset', async (req, res) => {
         res.json({ success: false, error: error.message });
     }
 });
-
 // ============================================================
 // 🔥 404 & ERROR HANDLER
 // ============================================================
