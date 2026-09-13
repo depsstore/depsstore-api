@@ -759,6 +759,22 @@ app.post('/api/v2/visitors/track', async (req, res) => {
     }
 });
 
+app.post('/api/v2/visitors/reset', async (req, res) => {
+    try {
+        console.log('📊 Resetting visitors...');
+        const data = await callAppsScript('resetVisitors', {});
+
+        if (data && data.success) {
+            return res.json(data);
+        }
+
+        res.json({ success: false, error: data?.error || 'Unknown error' });
+    } catch (error) {
+        console.error('❌ Reset visitors error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // ============================================================
 // 🔥 404 & ERROR HANDLER
 // ============================================================
