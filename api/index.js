@@ -1,6 +1,3 @@
-// api/index.js - Vercel Serverless Function (FIXED ORDER)
-// DepsStore API v3.0.0
-
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
@@ -16,10 +13,6 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ============================================================
-// KONFIGURASI
-// ============================================================
-
 const BQ_ACCOUNT_ID = process.env.BUATQRIS_ACCOUNT_ID;
 const BQ_SECRET_TOKEN = process.env.BUATQRIS_SECRET_TOKEN;
 const BQ_MODE = process.env.BUATQRIS_MODE || 'sandbox';
@@ -31,12 +24,6 @@ console.log(`📋 Account ID: ${BQ_ACCOUNT_ID ? '✅ Set' : '❌ Not Set'}`);
 console.log(`📋 Apps Script URL: ${APPS_SCRIPT_URL ? '✅ Set' : '❌ Not Set'}`);
 
 const DEFAULT_TIMEOUT = 60000;
-
-// ============================================================
-// 🔥 HELPER: CALL APPS SCRIPT (DEFINISIKAN DULU)
-// ============================================================
-
-// api/index.js - PERBAIKAN TIMEOUT
 
 async function callAppsScript(action, body = null) {
     if (!APPS_SCRIPT_URL) {
@@ -86,9 +73,6 @@ async function callAppsScript(action, body = null) {
     }
 }
 
-// ============================================================
-// 🔥 HELPER: CALL APPS SCRIPT WITH RETRY
-// ============================================================
 
 async function callAppsScriptWithRetry(action, body = null, maxRetries = 3) {
     let lastError = null;
@@ -122,9 +106,6 @@ async function callAppsScriptWithRetry(action, body = null, maxRetries = 3) {
     return { success: false, error: lastError || 'Max retries exceeded' };
 }
 
-// ============================================================
-// 🔥 HELPER: CALL BUATQRIS API
-// ============================================================
 
 async function callBuatQris(params) {
     if (!BQ_ACCOUNT_ID || !BQ_SECRET_TOKEN) {
@@ -192,9 +173,6 @@ async function callBuatQris(params) {
     }
 }
 
-// ============================================================
-// 🔥 ROOT & HEALTH
-// ============================================================
 
 app.get('/', (req, res) => {
     res.json({
@@ -245,9 +223,6 @@ app.get('/api/v2/system/health', (req, res) => {
     });
 });
 
-// ============================================================
-// 🔥 AUTH - LOGIN
-// ============================================================
 
 app.post('/api/v2/auth/login', async (req, res) => {
     console.log('🔐 Login attempt:', req.body.email);
@@ -284,9 +259,6 @@ app.post('/api/v2/auth/login', async (req, res) => {
     }
 });
 
-// ============================================================
-// 🔥 AUTH - REGISTER
-// ============================================================
 
 app.post('/api/v2/auth/register', async (req, res) => {
     console.log('📝 Register attempt:', req.body.email);
@@ -323,9 +295,6 @@ app.post('/api/v2/auth/register', async (req, res) => {
     }
 });
 
-// ============================================================
-// 🔥 PRODUCTS
-// ============================================================
 
 app.get('/api/v2/products', async (req, res) => {
     try {
@@ -370,9 +339,6 @@ app.get('/api/v2/products', async (req, res) => {
     }
 });
 
-// ============================================================
-// 🔥 ORDERS
-// ============================================================
 
 app.get('/api/v2/orders', async (req, res) => {
     try {
@@ -401,9 +367,6 @@ app.get('/api/v2/orders', async (req, res) => {
     }
 });
 
-// ============================================================
-// 🔥 STATS
-// ============================================================
 
 app.get('/api/v2/stats', async (req, res) => {
     try {
@@ -438,9 +401,6 @@ app.get('/api/v2/stats', async (req, res) => {
     }
 });
 
-// ============================================================
-// 🔥 PAYMENT - CREATE QRIS
-// ============================================================
 
 app.post('/api/v2/payment/create', async (req, res) => {
     console.log('🔥 PAYMENT CREATE ENDPOINT HIT!');
@@ -503,7 +463,6 @@ app.post('/api/v2/payment/create', async (req, res) => {
         const serviceFee = (qrisData.total_amount || amountToBuatQris) - amountToBuatQris;
         const expiredAt = qrisData.expired_at || qrisData.expiredAt || null;
 
-        // Simpan ke spreadsheet
         try {
             const saveData = {
                 transaction_id: transactionId,
@@ -572,9 +531,6 @@ app.post('/api/v2/payment/create', async (req, res) => {
     }
 });
 
-// ============================================================
-// 🔥 PAYMENT - CHECK STATUS
-// ============================================================
 
 app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
     console.log(`🔍 PAYMENT STATUS CHECK: ${req.params.transactionId}`);
@@ -627,12 +583,6 @@ app.get('/api/v2/payment/status/:transactionId', async (req, res) => {
     }
 });
 
-// ============================================================
-// 🔥 WEBHOOK - BUATQRIS
-// ============================================================
-
-// api/index.js - WEBHOOK HANDLER (SIMPLIFIED)
-
 app.post('/api/webhook/buatqris', async (req, res) => {
     console.log('Webhook received');
     console.log('Body:', JSON.stringify(req.body));
@@ -647,7 +597,6 @@ app.post('/api/webhook/buatqris', async (req, res) => {
             });
         }
         
-        // 🔥 SIMPAN KE APPS SCRIPT DENGAN TIMEOUT 60 DETIK
         const saveData = {
             transaction_id: data.transaction_id,
             order_id: data.order_id || 'ORD-' + Date.now(),
@@ -670,8 +619,6 @@ app.post('/api/webhook/buatqris', async (req, res) => {
         
         console.log('Sending to Apps Script:', JSON.stringify(saveData));
         
-        // 🔥 KIRIM KE APPS SCRIPT - TAPI JANGAN TUNGGU RESPONSE
-        // Kirim async, langsung response ke BuatQris
         try {
             await fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
@@ -690,7 +637,6 @@ app.post('/api/webhook/buatqris', async (req, res) => {
             // Tetap lanjutkan response sukses
         }
         
-        // 🔥 RESPONSE CEPAT KE BUATQRIS
         res.json({
             success: true,
             message: 'Webhook received',
@@ -709,9 +655,6 @@ app.post('/api/webhook/buatqris', async (req, res) => {
     }
 });
 
-// ============================================================
-// 🔥 VISITORS
-// ============================================================
 
 app.get('/api/v2/visitors', async (req, res) => {
     try {
@@ -773,9 +716,6 @@ app.post('/api/v2/visitors/reset', async (req, res) => {
         res.json({ success: false, error: error.message });
     }
 });
-// ============================================================
-// 🔥 404 & ERROR HANDLER
-// ============================================================
 
 app.use((req, res) => {
     console.log(`404: ${req.method} ${req.path}`);
@@ -796,9 +736,5 @@ app.use((err, req, res, next) => {
         timestamp: new Date().toISOString()
     });
 });
-
-// ============================================================
-// EXPORT
-// ============================================================
 
 module.exports = app;
